@@ -4,33 +4,30 @@
 package layout
 
 import (
-	"github.com/benoitkugler/pen2latex/symbols"
-)
+	"fmt"
+	"strings"
 
-const (
-	EMWidth         float32 = 20.
-	EMHeight        float32 = 50.
-	EMBaselineRatio float32 = 0.66 // from the top
+	sy "github.com/benoitkugler/pen2latex/symbols"
 )
 
 // Scope is an area in the editor where potential new
 // symbols may be drawn. Its area is never empty :
 // it contains already written input or a blank area
 // if the input is empty.
-type Scope = symbols.Rect
+type Scope = sy.Rect
 
 // Grapheme is one symbol input, with its resolved Unicode value
 type Grapheme struct {
 	Char   rune // the resolved rune for the symbol
-	Symbol symbols.Symbol
+	Symbol sy.Symbol
 }
 
 func (nc *Grapheme) Content() *Grapheme { return nc }
 
-// Block is a component of an [Expression] coming
+// block is a component of an [Expression] coming
 // from a symbol (such as a letter, a digit, a math operator),
 // and including potential children.
-type Block interface {
+type block interface {
 	// Content returns the main grapheme for the block,
 	// which usually has the visual appearence of the block with empty
 	// children.
@@ -43,17 +40,35 @@ type Block interface {
 	// Scopes returns a list of the children scopes, in the same order
 	// as [Children]
 	Scopes() []Scope
+
+	// laTeX returns the LaTeX code for this block and its children
+	laTeX() string
 }
 
 // Node represents one level of an expression.
 // An empty node is used when no symbols have been written yet.
 type Node struct {
-	Blocks []Block
+	Blocks []block
+}
+
+func (n *Node) latex() string {
+	chunks := make([]string, len(n.Blocks))
+	for i, b := range n.Blocks {
+		chunks[i] = b.laTeX()
+	}
+	return strings.Join(chunks, "")
+}
+
+// insertAt insert [bl] at Blocks[index]
+func (n *Node) insertAt(bl block, index int) {
+	n.Blocks = append(n.Blocks, nil /* use the zero value of the element type */)
+	copy(n.Blocks[index+1:], n.Blocks[index:])
+	n.Blocks[index] = bl
 }
 
 // returns EmptyRect if n is empty
-func (n *Node) extendedBox() symbols.Rect {
-	bbox := symbols.EmptyRect()
+func (n *Node) extendedBox() sy.Rect {
+	bbox := sy.EmptyRect()
 	for _, char := range n.Blocks {
 		bbox.Union(extendedBox(char))
 	}
@@ -62,7 +77,7 @@ func (n *Node) extendedBox() symbols.Rect {
 
 // extendedBox return the extended bounding box,
 // including the glyph and its children
-func extendedBox(ch Block) symbols.Rect {
+func extendedBox(ch block) sy.Rect {
 	own := ch.Content().Symbol.Union().BoundingBox()
 	for _, child := range ch.Scopes() {
 		own.Union(child)
@@ -79,7 +94,7 @@ type Line struct {
 	cursor *Grapheme
 }
 
-func (li *Line) Symbols() (out []symbols.Symbol) {
+func (li *Line) Symbols() (out []sy.Symbol) {
 	var aux func(node *Node)
 	aux = func(node *Node) {
 		for _, char := range node.Blocks {
@@ -111,12 +126,15 @@ func (li *Line) Scopes() (out []Scope) {
 	return out
 }
 
+// LaTeX returns the LaTeX code deduced from the current drawings
+func (li *Line) LaTeX() string { return li.root.latex() }
+
 var (
-	_ Block = (*regularChar)(nil)
-	_ Block = (*fracOperator)(nil)
-	_ Block = (*sumOperator)(nil)
-	_ Block = (*prodOperator)(nil)
-	_ Block = (*integralOperator)(nil)
+	_ block = (*regularChar)(nil)
+	_ block = (*fracOperator)(nil)
+	_ block = (*sumOperator)(nil)
+	_ block = (*prodOperator)(nil)
+	_ block = (*integralOperator)(nil)
 )
 
 // regularChar is a simple character which
@@ -130,11 +148,11 @@ type regularChar struct {
 func (r *regularChar) Children() []*Node { return []*Node{r.indice, r.exponent} }
 
 // return a rect such that its baseline (top + height*EMBaselineRatio) is at baseline
-func rectForBaseline(x, width, height, baseline float32) symbols.Rect {
-	top := baseline - height*EMBaselineRatio
-	return symbols.Rect{
-		UL: symbols.Pos{X: x, Y: top},
-		LR: symbols.Pos{X: x + width, Y: top + height},
+func rectForBaseline(x, width, height, baseline float32) sy.Rect {
+	top := baseline - height*sy.EMBaselineRatio
+	return sy.Rect{
+		UL: sy.Pos{X: x, Y: top},
+		LR: sy.Pos{X: x + width, Y: top + height},
 	}
 }
 
@@ -146,10 +164,10 @@ func (r *regularChar) Scopes() []Scope {
 	xLeft := bb.LR.X - 0.1*bb.Width()
 
 	// the height is fixed to a proportion of the EM square
-	height := EMHeight * 0.5
+	height := sy.EMHeight * 0.4
 
 	// enlarge by the current exponent bbox width
-	exponentWith := EMWidth
+	exponentWith := sy.EMWidth
 	if expBB := r.exponent.extendedBox(); !expBB.IsEmpty() {
 		exponentWith += bb.Width()
 	}
@@ -157,14 +175,27 @@ func (r *regularChar) Scopes() []Scope {
 	exponent := rectForBaseline(xLeft, exponentWith, height, bb.UL.Y)
 
 	// enlarge by the current exponent bbox width
-	indiceWith := EMWidth
+	indiceWith := sy.EMWidth
 	if expBB := r.indice.extendedBox(); !expBB.IsEmpty() {
 		indiceWith += bb.Width()
 	}
 	// adjust the baseline of the indice scope just under the char
-	indice := rectForBaseline(xLeft, indiceWith, height, bb.LR.Y+0.1*EMHeight)
+	indice := rectForBaseline(xLeft, indiceWith, height, bb.LR.Y+0.1*sy.EMHeight)
 
 	return []Scope{indice, exponent}
+}
+
+func (r regularChar) laTeX() string {
+	out := string(r.Grapheme.Char)
+	indice := r.indice.latex()
+	exponent := r.exponent.latex()
+	if indice != "" {
+		out += fmt.Sprintf("_{%s}", indice)
+	}
+	if exponent != "" {
+		out += fmt.Sprintf("^{%s}", exponent)
+	}
+	return out
 }
 
 type fracOperator struct {
@@ -180,6 +211,9 @@ func (fracOperator) Scopes() []Scope {
 	return nil
 }
 
+// TODO:
+func (r fracOperator) laTeX() string { return "" }
+
 type sumOperator struct {
 	Grapheme
 
@@ -194,6 +228,9 @@ func (sumOperator) Scopes() []Scope {
 	return nil
 }
 
+// TODO:
+func (r sumOperator) laTeX() string { return "" }
+
 type prodOperator sumOperator
 
 func (p *prodOperator) Children() (out []*Node) { return (*sumOperator)(p).Children() }
@@ -203,6 +240,9 @@ func (prodOperator) Scopes() []Scope {
 	return nil
 }
 
+// TODO:
+func (r prodOperator) laTeX() string { return "" }
+
 type integralOperator sumOperator
 
 func (p *integralOperator) Children() (out []*Node) { return (*sumOperator)(p).Children() }
@@ -211,3 +251,6 @@ func (integralOperator) Scopes() []Scope {
 	// TODO:
 	return nil
 }
+
+// TODO:
+func (r integralOperator) laTeX() string { return "" }

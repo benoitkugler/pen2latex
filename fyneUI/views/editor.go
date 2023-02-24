@@ -1,7 +1,11 @@
 package views
 
 import (
+	"fmt"
+	"image"
+
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
 	"github.com/benoitkugler/pen2latex/fyneUI/whiteboard"
@@ -10,8 +14,26 @@ import (
 )
 
 func showEditor(db *symbols.SymbolStore) *fyne.Container {
-	ed := newEditor(db)
-	return container.NewVBox(ed.wb, ed.recognized, ed.resetButton)
+	// ed := newEditor(db)
+
+	data := canvas.NewImageFromImage(image.NewGray(image.Rect(0, -180, 100, 180)))
+	data.FillMode = canvas.ImageFillOriginal
+
+	shapeImg := canvas.NewImageFromImage(image.NewGray(image.Rect(0, -180, 100, 180)))
+	shapeImg.FillMode = canvas.ImageFillOriginal
+	rec := whiteboard.NewRecorder()
+	rec.OnEndShape = func() {
+		img := rec.Recorder.Current().Shape().AngularGraph()
+		data.Image = img
+		data.Refresh()
+
+		si := rec.Recorder.Current().Shape().AngleClustersGraph()
+		shapeImg.Image = si
+		shapeImg.Refresh()
+
+		fmt.Println(rec.Recorder.Current().Shape().Segment())
+	}
+	return container.NewVBox(rec, shapeImg, data)
 }
 
 type editor struct {
@@ -45,6 +67,7 @@ func (ed *editor) tryMatchShape() {
 	ed.line.Insert(rec, ed.db)
 	ed.wb.Content = ed.line.Symbols()
 	ed.wb.Scopes = ed.line.Scopes()
+	ed.recognized.SetText(ed.line.LaTeX())
 }
 
 func (ed *editor) showScope(pos symbols.Pos) {
@@ -53,6 +76,9 @@ func (ed *editor) showScope(pos symbols.Pos) {
 		LR: symbols.Pos{X: pos.X + 1, Y: pos.Y + 1},
 	}
 	_, scope, _ := ed.line.FindNode(glyph)
+	if scope.IsEmpty() { // root
+		scope = ed.wb.RootScope()
+	}
 	ed.wb.HighlightedScope = scope
 }
 
@@ -62,4 +88,5 @@ func (ed *editor) clear() {
 	ed.wb.Content = nil
 	ed.wb.Scopes = nil
 	ed.wb.Refresh()
+	ed.recognized.SetText("Dessiner un caractère...")
 }

@@ -53,7 +53,7 @@ func drawSquare(ops *op.Ops) {
 	paint.PaintOp{}.Add(ops)
 }
 
-func drawBezier(ops *op.Ops, beziersCurves []symbols.Bezier) {
+func drawBezier(ops *op.Ops, beziersCurves []symbols.BezierC) {
 	if len(beziersCurves) == 0 {
 		return
 	}

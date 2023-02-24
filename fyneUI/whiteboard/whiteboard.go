@@ -7,8 +7,7 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/widget"
-	"github.com/benoitkugler/pen2latex/layout"
-	"github.com/benoitkugler/pen2latex/symbols"
+	sym "github.com/benoitkugler/pen2latex/symbols"
 	"golang.org/x/image/colornames"
 )
 
@@ -34,7 +33,7 @@ func newWhiteboardRendered(w *Whiteboard) *whiteboardRenderer {
 		widget:          w,
 		rec:             canvas.NewRectangle(colornames.Lightgray),
 		baseline:        canvas.NewLine(color.Black),
-		higlightedScope: canvas.NewRectangle(colornames.Red),
+		higlightedScope: canvas.NewRectangle(color.NRGBA{200, 10, 10, 100}),
 	}
 }
 
@@ -44,12 +43,12 @@ func (w *whiteboardRenderer) Destroy() {}
 // This should never call Refresh.
 func (w *whiteboardRenderer) Layout(size fyne.Size) {
 	w.rec.Resize(size)
-	w.baseline.Position1 = fyne.NewPos(0, size.Height*layout.EMBaselineRatio)
-	w.baseline.Position2 = fyne.NewPos(size.Width, size.Height*layout.EMBaselineRatio)
+	w.baseline.Position1 = fyne.NewPos(0, size.Height*sym.EMBaselineRatio)
+	w.baseline.Position2 = fyne.NewPos(size.Width, size.Height*sym.EMBaselineRatio)
 }
 
 func (w *whiteboardRenderer) MinSize() fyne.Size {
-	return fyne.NewSize(layout.EMWidth, layout.EMHeight)
+	return fyne.NewSize(sym.EMWidth, sym.EMHeight)
 }
 
 // Objects returns all objects that should be drawn.
@@ -63,7 +62,7 @@ func (w *whiteboardRenderer) Objects() []fyne.CanvasObject {
 	return out
 }
 
-func rectToFyne(rect symbols.Rect) (fyne.Position, fyne.Size) {
+func rectToFyne(rect sym.Rect) (fyne.Position, fyne.Size) {
 	s := rect.Size()
 	return fyne.Position(rect.UL), fyne.Size{Width: s.X, Height: s.Y}
 }
@@ -98,15 +97,15 @@ type Whiteboard struct {
 	// and before updating the UI.
 	OnEndShape func()
 
-	OnCursorMove func(symbols.Pos)
+	OnCursorMove func(sym.Pos)
 
-	Recorder symbols.Recorder
+	Recorder sym.Recorder
 
-	Content []symbols.Symbol
+	Content []sym.Symbol
 
-	Scopes []symbols.Rect
+	Scopes []sym.Rect
 
-	HighlightedScope symbols.Rect
+	HighlightedScope sym.Rect
 
 	widget.BaseWidget
 }
@@ -136,17 +135,25 @@ func (w *Whiteboard) MouseIn(*desktop.MouseEvent) {}
 
 // MouseMoved is a hook that is called if the mouse pointer moved over the element.
 func (w *Whiteboard) MouseMoved(event *desktop.MouseEvent) {
-	w.Recorder.AddToShape(symbols.Pos(event.PointEvent.Position))
+	w.Recorder.AddToShape(sym.Pos(event.PointEvent.Position))
 	if w.OnCursorMove != nil {
-		w.OnCursorMove(symbols.Pos(event.PointEvent.Position))
+		w.OnCursorMove(sym.Pos(event.PointEvent.Position))
 		w.Refresh()
 	}
 }
 
 // MouseOut is a hook that is called if the mouse pointer leaves the element.
-func (w *Whiteboard) MouseOut() {}
+func (w *Whiteboard) MouseOut() {
+	w.HighlightedScope = sym.Rect{}
+	w.Refresh()
+}
 
-func shapeCanvasObjects(sh symbols.Shape) []fyne.CanvasObject {
+func (w *Whiteboard) RootScope() sym.Rect {
+	s := w.Size()
+	return sym.Rect{UL: sym.Pos{X: 0, Y: 0}, LR: sym.Pos{X: s.Width, Y: s.Height}}
+}
+
+func shapeCanvasObjects(sh sym.Shape) []fyne.CanvasObject {
 	if len(sh) == 0 {
 		return nil
 	}
@@ -163,7 +170,7 @@ func shapeCanvasObjects(sh symbols.Shape) []fyne.CanvasObject {
 	return out
 }
 
-func symbolCanvasObjects(sy symbols.Symbol) []fyne.CanvasObject {
+func symbolCanvasObjects(sy sym.Symbol) []fyne.CanvasObject {
 	var out []fyne.CanvasObject
 	for _, shape := range sy {
 		out = append(out, shapeCanvasObjects(shape)...)

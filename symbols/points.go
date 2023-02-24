@@ -3,6 +3,7 @@ package symbols
 import (
 	"fmt"
 	"math"
+	"strings"
 	"time"
 )
 
@@ -27,7 +28,17 @@ type Pos struct {
 	X, Y fl
 }
 
-func (p Pos) String() string { return fmt.Sprintf("{X: %g, Y:%g}", p.X, p.Y) }
+func (p Pos) String() string { return fmt.Sprintf("{X: %.02f, Y:%.02f}", p.X, p.Y) }
+
+func (p *Pos) Scale(s fl)       { p.X *= s; p.Y *= s }
+func (p Pos) ScaleTo(s fl) Pos  { p.Scale(s); return p }
+func (p Pos) Add(other Pos) Pos { p.X += other.X; p.Y += other.Y; return p }
+func (p Pos) Sub(other Pos) Pos { p.X -= other.X; p.Y -= other.Y; return p }
+func (p Pos) Norm() fl          { return float32(math.Sqrt(float64(p.NormSquared()))) }
+func (p Pos) NormSquared() fl   { return p.X*p.X + p.Y*p.Y }
+
+// return the quadratic norm
+func distancePoints(p1, p2 Pos) fl { return p1.Sub(p2).Norm() }
 
 var inf = fl(math.Inf(+1))
 
@@ -54,6 +65,13 @@ func (r Rect) String() string {
 }
 
 func (r Rect) IsEmpty() bool { return r == EmptyRect() }
+
+func (r Rect) contains(p Pos) bool {
+	if r.IsEmpty() {
+		return false
+	}
+	return r.UL.X <= p.X && p.X <= r.LR.X && r.UL.Y <= p.Y && p.Y <= r.LR.Y
+}
 
 func (r *Rect) enlarge(point Pos) {
 	r.UL.X = min(r.UL.X, point.X)
@@ -93,6 +111,17 @@ func (r Rect) Height() fl { return max(r.LR.Y-r.UL.Y, 0) }
 // Shape stores the points of a shape drawn without lifting the pen
 type Shape []Pos
 
+func (sh Shape) String() string {
+	var st strings.Builder
+	st.WriteString("Shape{\n")
+	for _, p := range sh {
+		st.WriteString(p.String())
+		st.WriteString(",")
+	}
+	st.WriteString("}\n")
+	return st.String()
+}
+
 // BoundingBox returns the rectangle enclosing the shape.
 // It returns EmptyRect if the shape is empty
 func (sh Shape) BoundingBox() Rect {
@@ -103,9 +132,30 @@ func (sh Shape) BoundingBox() Rect {
 	return out
 }
 
-// normalized remove x leading space
+// normalizeY compute the transformation sending [scope]
+// to the reference EM rect, and applies it to the Y coordinates of the
+// shape
+func (sh Shape) normalizeY(scope Rect) Shape {
+	if scope.IsEmpty() {
+		return sh
+	}
+	// we look for a function f(t) = at + b
+	// where f(scope) = em ref
+	// that is
+	// f(scope.UL.Y) = 0
+	// f(scope.LR.Y) = EMHeight
+	a := (0 - EMHeight) / (scope.UL.Y - scope.LR.Y)
+	b := 0 - a*scope.UL.Y
+	out := make(Shape, len(sh))
+	for i, c := range sh {
+		out[i] = Pos{c.X, a*c.Y + b}
+	}
+	return out
+}
+
+// normalizeX remove x leading space
 // with respect to the bounding box
-func (sh Shape) normalized() Shape {
+func (sh Shape) normalizeX() Shape {
 	if len(sh) == 0 {
 		return nil
 	}

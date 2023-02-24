@@ -11,23 +11,25 @@ import (
 func (line *Line) Insert(rec symbols.Record, db *symbols.SymbolStore) {
 	// find the correct scope
 	node, scope, insertPos := line.FindNode(rec.Shape().BoundingBox())
-	fmt.Println("enclosing box", scope, insertPos, node)
+	fmt.Printf("enclosing box %v %v %p\n", scope, insertPos, node)
 
-	r, preferCompound := db.Lookup(rec)
+	r, preferCompound := db.Lookup(rec, scope)
 
+	fmt.Println(preferCompound)
 	// if a compound symbol is matched, simply update the previous char
 	if preferCompound && line.cursor != nil {
 		*line.cursor = Grapheme{Char: r, Symbol: rec.Compound()}
 	} else { // find the place to insert the new symbol
-
 		// TODO:
 		regChar := newChar(r, symbols.Symbol{rec.Shape()})
-		line.root.Blocks = append(line.root.Blocks, regChar)
+		node.insertAt(regChar, insertPos)
 		line.cursor = regChar.Content()
 	}
+
+	fmt.Printf("root : %p ; tree : %v\n", &line.root, line.root)
 }
 
-func newChar(r rune, symbol symbols.Symbol) Block {
+func newChar(r rune, symbol symbols.Symbol) block {
 	// TODO : support operators
 	return &regularChar{Grapheme: Grapheme{Char: r, Symbol: symbol}, indice: &Node{}, exponent: &Node{}}
 }
@@ -61,7 +63,7 @@ func (line *Line) FindNode(glyph symbols.Rect) (out *Node, scope Scope, index in
 		return n, parentScope, indexInsertRectBetweenArea(glyph, boxes)
 	}
 
-	return aux(&line.root, Scope{})
+	return aux(&line.root, symbols.EmptyRect())
 }
 
 // isRectInAreas performs approximate matching between the given [glyph] bounding box

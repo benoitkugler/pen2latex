@@ -7,12 +7,6 @@ import "math"
 // Eiter, Thomas; Mannila, Heikki (1994), Computing discrete Fréchet distance
 // http://www.kr.tuwien.ac.at/staff/eiter/et-archive/cdtr9464.pdf
 
-func distancePoints(p1, p2 Pos) fl {
-	dx := p1.X - p2.X
-	dy := p1.Y - p2.Y
-	return dx*dx + dy*dy
-}
-
 // Discrete Fréchet distance (positive, lower is better).
 // See Eiter and Mannila (1994), Table 1: Algorithm computing the coupling measure
 func frechetDistanceShapes(u, v Shape) fl {
