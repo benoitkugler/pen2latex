@@ -53,7 +53,7 @@ func assignClusters(points []Pos, centers []Pos, out clusters) (hasChanged bool)
 		bestD := inf
 		bestCluster := -1
 		for j, center := range centers {
-			if dist := distancePoints(p, center); dist < bestD {
+			if dist := distP(p, center); dist < bestD {
 				bestD = dist
 				bestCluster = j
 			}
@@ -100,7 +100,7 @@ func (km kmOut) wcss() fl {
 	var s fl
 	for i, p := range km.points {
 		cl := km.cls.pointClusters[i]
-		s += distancePoints(p, km.centers[cl])
+		s += distP(p, km.centers[cl])
 	}
 	s /= fl(len(km.points)) // to ease comparison
 	return s
@@ -147,7 +147,7 @@ func maxStepInCluster(points []Pos, clusters clusters, cl uint8) fl {
 				continue
 			}
 
-			if d := distancePoints(points[previousInCluster], points[i]); d > max {
+			if d := distP(points[previousInCluster], points[i]); d > max {
 				max = d
 			}
 
@@ -170,7 +170,7 @@ func detectOutlierInCluster(points []Pos, cls clusters, center Pos, cl uint8) []
 	for i, p := range points {
 		if cls.pointClusters[i] == cl {
 			inCluster = append(inCluster, i)
-			distances = append(distances, distancePoints(p, center))
+			distances = append(distances, distP(p, center))
 		}
 	}
 	mean, std := meanAndStd(distances)
@@ -263,7 +263,7 @@ func segmentByAngleBreak(angles []Pos, outliers map[int]bool) []clusterRange {
 			previous = current.Y
 			continue
 		}
-		if math.Abs(float64(current.Y-previous)) >= angleBreak { // new cluster, push the previous
+		if abs(current.Y-previous) >= angleBreak { // new cluster, push the previous
 			push(clusterRange{currentRangeStart, previousIndex + 1})
 			currentRangeStart = i
 		}

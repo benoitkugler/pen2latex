@@ -25,16 +25,16 @@ func frechetDistanceShapes(u, v Shape) fl {
 		if ca[i][j] > -1 {
 			return ca[i][j]
 		} else if i == 0 && j == 0 {
-			ca[i][j] = distancePoints(u[0], v[0])
+			ca[i][j] = distP(u[0], v[0])
 		} else if i > 0 && j == 0 {
-			ca[i][j] = max(computeCoupling(i-1, 0), distancePoints(u[i], v[0]))
+			ca[i][j] = max(computeCoupling(i-1, 0), distP(u[i], v[0]))
 		} else if i == 0 && j > 0 {
-			ca[i][j] = max(computeCoupling(0, j-1), distancePoints(u[0], v[j]))
+			ca[i][j] = max(computeCoupling(0, j-1), distP(u[0], v[j]))
 		} else if i > 0 && j > 0 {
 			d1 := computeCoupling(i-1, j)
 			d2 := computeCoupling(i-1, j-1)
 			d3 := computeCoupling(i, j-1)
-			d4 := distancePoints(u[i], v[j])
+			d4 := distP(u[i], v[j])
 			ca[i][j] = max(min(min(d1, d2), d3), d4)
 		}
 		return ca[i][j]
@@ -48,10 +48,183 @@ func closestPointDistance(u, v Shape) fl {
 	best := fl(math.Inf(1))
 	for _, pu := range u {
 		for _, pv := range v {
-			if d := distancePoints(pu, pv); d < best {
+			if d := distP(pu, pv); d < best {
 				best = d
 			}
 		}
 	}
 	return best
+}
+
+// encode an affine trans, the composition
+// of a (preserving ratio) scaling and a translation
+//
+//	V = | s  0 | U  + | tx |
+//		| 0  s |	  | ty |
+type trans struct {
+	s fl
+	t Pos
+}
+
+var id = trans{s: 1, t: Pos{}}
+
+func (tr trans) apply(p Pos) Pos {
+	return Pos{
+		X: tr.s*p.X + tr.t.X,
+		Y: tr.s*p.Y + tr.t.Y,
+	}
+}
+
+func (seg Segment) scale(tr trans) ShapeAtom {
+	return Segment{Start: tr.apply(seg.Start), End: tr.apply(seg.End)}
+}
+
+func (ci Circle) scale(tr trans) ShapeAtom {
+	return Circle{Center: tr.apply(ci.Center), Radius: abs(tr.s) * ci.Radius}
+}
+
+func (b BezierC) scale(tr trans) ShapeAtom {
+	return BezierC{tr.apply(b.P0), tr.apply(b.P1), tr.apply(b.P2), tr.apply(b.P3)}
+}
+
+func (U Segment) distance(V Segment) fl {
+	d1 := U.Start.Sub(V.Start).NormSquared() + U.End.Sub(V.End).NormSquared()
+	d2 := U.Start.Sub(V.End).NormSquared() + U.End.Sub(V.Start).NormSquared()
+	return min(d1, d2) / 2
+}
+
+// compute the transformation needed to map [U] to [V] (as close as possible)
+func (U Segment) getMapTo(V Segment) trans {
+	Lu, Lv := distP(U.Start, U.End), distP(V.Start, V.End)
+	s := Lv / Lu
+	// align barycenter of scaled U
+	Bu := U.Start.Add(U.End).ScaleTo(0.5 * s)
+	Bv := V.Start.Add(V.End).ScaleTo(0.5)
+
+	t := Bv.Sub(Bu)
+
+	return trans{s, t}
+}
+
+func (U Circle) distance(V Circle) fl {
+	dr := U.Radius - V.Radius
+	return (U.Center.Sub(V.Center).NormSquared() + dr*dr) / 2
+}
+
+// always return 0
+func (U Circle) getMapTo(V Circle) trans {
+	s := V.Radius / U.Radius
+	t := V.Center.Sub(U.Center)
+	return trans{s, t}
+}
+
+func (U BezierC) getMapTo(V BezierC) trans {
+	// only use start and end to compute the transformation
+	return Segment{U.P0, U.P3}.getMapTo(Segment{V.P0, V.P3})
+}
+
+func (U BezierC) distance(V BezierC) fl {
+	d1 := (U.P0.Sub(V.P0).NormSquared() +
+		U.P1.Sub(V.P1).NormSquared() +
+		U.P2.Sub(V.P2).NormSquared() +
+		U.P3.Sub(V.P3).NormSquared())
+	d2 := (U.P0.Sub(V.P3).NormSquared() +
+		U.P1.Sub(V.P2).NormSquared() +
+		U.P2.Sub(V.P1).NormSquared() +
+		U.P3.Sub(V.P0).NormSquared())
+	return min(d1, d2) / 4
+}
+
+// return a mapping from U to V
+func mapBetweenAtoms(U, V ShapeAtom) (trans, bool) {
+	switch U := U.(type) {
+	case Segment:
+		V, ok := V.(Segment)
+		if !ok {
+			return trans{}, false
+		}
+		return U.getMapTo(V), true
+	case BezierC:
+		V, ok := V.(BezierC)
+		if !ok {
+			return trans{}, false
+		}
+		return U.getMapTo(V), true
+	case Circle:
+		V, ok := V.(Circle)
+		if !ok {
+			return trans{}, false
+		}
+		return U.getMapTo(V), true
+	default:
+		panic("exhaustive type switch")
+	}
+}
+
+func distanceBetweenAtoms(U, V ShapeAtom) fl {
+	switch U := U.(type) {
+	case Segment:
+		V, ok := V.(Segment)
+		if !ok {
+			return inf
+		}
+		return U.distance(V)
+	case BezierC:
+		V, ok := V.(BezierC)
+		if !ok {
+			return inf
+		}
+		return U.distance(V)
+	case Circle:
+		V, ok := V.(Circle)
+		if !ok {
+			return inf
+		}
+		return U.distance(V)
+	default:
+		panic("exhaustive type switch")
+	}
+}
+
+// compute the distance between two lists which must have the same length,
+// by comuting the optimal permutation and transformation from one to the other
+func bestShapeDistance(U, V []ShapeAtom) fl {
+	best := inf
+	perm(U, func(permuted []ShapeAtom) {
+		d := shapeDistance(permuted, V)
+		if d < best {
+			best = d
+		}
+	}, 0)
+	return best
+}
+
+func shapeDistance(Us, Vs []ShapeAtom) fl {
+	tr, ok := mapBetweenAtoms(Us[0], Vs[0])
+	if !ok {
+		return inf
+	}
+
+	var totalDistance fl
+	for j, U := range Us {
+		U = U.scale(tr)
+		totalDistance += distanceBetweenAtoms(U, Vs[j])
+	}
+
+	return totalDistance / fl(len(Us)) // normalize
+}
+
+// Permute the values at index i to len(a)-1.
+// mutating a
+func perm(a []ShapeAtom, f func([]ShapeAtom), i int) {
+	if i > len(a) {
+		f(a)
+		return
+	}
+	perm(a, f, i+1)
+	for j := i + 1; j < len(a); j++ {
+		a[i], a[j] = a[j], a[i]
+		perm(a, f, i+1)
+		a[i], a[j] = a[j], a[i]
+	}
 }

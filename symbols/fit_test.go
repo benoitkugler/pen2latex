@@ -1,6 +1,7 @@
 package symbols
 
 import (
+	"encoding/json"
 	"fmt"
 	"image"
 	"image/color"
@@ -8,6 +9,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	tu "github.com/benoitkugler/pen2latex/testutils"
@@ -280,4 +282,16 @@ func TestRealSample(t *testing.T) {
 			assertKinds(t, s.Segment(), v.expected)
 		}
 	}
+}
+
+func TestJSON(t *testing.T) {
+	s := ShapeFootprint{Circle{}, BezierC{}, Segment{}}
+	b, err := json.Marshal(s)
+	tu.AssertNoErr(t, err)
+
+	var s2 ShapeFootprint
+	err = json.Unmarshal(b, &s2)
+	tu.AssertNoErr(t, err)
+
+	tu.Assert(t, reflect.DeepEqual(s, s2))
 }

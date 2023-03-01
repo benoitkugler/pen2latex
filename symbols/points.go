@@ -23,6 +23,13 @@ func max(x, y fl) fl {
 	return y
 }
 
+func abs(x fl) fl {
+	if x < 0 {
+		return -x
+	}
+	return x
+}
+
 // Pos is a 2D point
 type Pos struct {
 	X, Y fl
@@ -38,7 +45,7 @@ func (p Pos) Norm() fl          { return float32(math.Sqrt(float64(p.NormSquared
 func (p Pos) NormSquared() fl   { return p.X*p.X + p.Y*p.Y }
 
 // return the quadratic norm
-func distancePoints(p1, p2 Pos) fl { return p1.Sub(p2).Norm() }
+func distP(p1, p2 Pos) fl { return p1.Sub(p2).Norm() }
 
 var inf = fl(math.Inf(+1))
 

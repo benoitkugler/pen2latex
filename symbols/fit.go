@@ -1,6 +1,8 @@
 package symbols
 
 import (
+	"encoding/json"
+	"fmt"
 	"math"
 )
 
@@ -47,7 +49,7 @@ func pathLengthIndices(points []Pos) []fl {
 		if i == 0 {
 			continue
 		}
-		totalLength += distancePoints(points[i], points[i-1])
+		totalLength += distP(points[i], points[i-1])
 		out[i] = totalLength
 	}
 	// normalize to [0,1]
@@ -109,7 +111,7 @@ func generateBezier(d []Pos, u []fl, tHat1, tHat2 Pos) BezierC {
 	/* If alpha negative, use the Wu/Barsky heuristic (see text) */
 	/* (if alpha is 0, you get coincident control points that lead to
 	 * divide by zero in any subsequent newtonRaphsonRootStep() call. */
-	segLength := distancePoints(d[first], d[last])
+	segLength := distP(d[first], d[last])
 	epsilon := 1.0e-6 * segLength
 	if alpha_l < epsilon || alpha_r < epsilon {
 		/* fall back on standard (probably inaccurate) formula, and subdivide further if needed. */
@@ -312,8 +314,51 @@ const (
 	SAKCircle
 )
 
+type shapeAtomData struct {
+	Data []Pos         `json:"d"`
+	Kind ShapeAtomKind `json:"k"`
+}
+
+func (d shapeAtomData) deserialize() (ShapeAtom, error) {
+	switch d.Kind {
+	case SAKBezier:
+		if L := len(d.Data); L != 4 {
+			return nil, fmt.Errorf("invalid length for BezierC %d", L)
+		}
+		return BezierC{d.Data[0], d.Data[1], d.Data[2], d.Data[3]}, nil
+	case SAKSegment:
+		if L := len(d.Data); L != 2 {
+			return nil, fmt.Errorf("invalid length for Segment %d", L)
+		}
+		return Segment{d.Data[0], d.Data[1]}, nil
+	case SAKCircle:
+		if L := len(d.Data); L != 2 {
+			return nil, fmt.Errorf("invalid length for Circle %d", L)
+		}
+		return Circle{Center: d.Data[0], Radius: d.Data[1].X}, nil
+	default:
+		return nil, fmt.Errorf("invalid ShapeAtomKind %d", d.Kind)
+	}
+}
+
+func (b BezierC) serialize() shapeAtomData {
+	return shapeAtomData{Kind: SAKBezier, Data: []Pos{b.P0, b.P1, b.P2, b.P3}}
+}
+
+func (s Segment) serialize() shapeAtomData {
+	return shapeAtomData{Kind: SAKSegment, Data: []Pos{s.Start, s.End}}
+}
+
+func (c Circle) serialize() shapeAtomData {
+	return shapeAtomData{Kind: SAKCircle, Data: []Pos{c.Center, {c.Radius, 0}}}
+}
+
 type ShapeAtom interface {
 	Kind() ShapeAtomKind
+
+	scale(trans) ShapeAtom // with same concrete type
+
+	serialize() shapeAtomData
 }
 
 func (BezierC) Kind() ShapeAtomKind { return SAKBezier }
@@ -356,4 +401,30 @@ func (sh Shape) identify() ShapeAtom {
 	} else {
 		return circle
 	}
+}
+
+type ShapeFootprint []ShapeAtom
+
+func (l ShapeFootprint) MarshalJSON() ([]byte, error) {
+	tmp := make([]shapeAtomData, len(l))
+	for i, a := range l {
+		tmp[i] = a.serialize()
+	}
+	return json.Marshal(tmp)
+}
+
+func (l *ShapeFootprint) UnmarshalJSON(data []byte) error {
+	var tmp []shapeAtomData
+	err := json.Unmarshal(data, &tmp)
+	if err != nil {
+		return err
+	}
+	*l = make(ShapeFootprint, len(tmp))
+	for i, d := range tmp {
+		(*l)[i], err = d.deserialize()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
