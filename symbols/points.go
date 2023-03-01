@@ -28,7 +28,7 @@ type Pos struct {
 	X, Y fl
 }
 
-func (p Pos) String() string { return fmt.Sprintf("{X: %.02f, Y:%.02f}", p.X, p.Y) }
+func (p Pos) String() string { return fmt.Sprintf("{X: %.01f, Y:%.01f}", p.X, p.Y) }
 
 func (p *Pos) Scale(s fl)       { p.X *= s; p.Y *= s }
 func (p Pos) ScaleTo(s fl) Pos  { p.Scale(s); return p }

@@ -91,9 +91,9 @@ func TestVisu(t *testing.T) {
 	shapeToPixelImg(input.normalizeTo(ref2.BoundingBox()))
 	shapeToPixelImg(ref2)
 
-	shapeToPixelImg(input.smoothTo())
-	shapeToPixelImg(ref1.smoothTo())
-	shapeToPixelImg(ref2.smoothTo())
+	shapeToPixelImg(input.smooth())
+	shapeToPixelImg(ref1.smooth())
+	shapeToPixelImg(ref2.smooth())
 }
 
 var i int

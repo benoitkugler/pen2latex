@@ -40,11 +40,11 @@ func (db *SymbolStore) match(rec Record) (rune, bool) {
 	shape := rec.Shape()
 
 	for i, entry := range db.entries {
-		entryS := entry.Shape.smoothTo()
+		entryS := entry.Shape.smooth()
 		entryBB := entryS.BoundingBox()
 		// we align the input bounding box to each of the candidate
-		normalizedShape := shape.normalizeTo(entryBB).smoothTo()
-		normalizedCompoundShape := compoundShape.normalizeTo(entryBB).smoothTo()
+		normalizedShape := shape.normalizeTo(entryBB).smooth()
+		normalizedCompoundShape := compoundShape.normalizeTo(entryBB).smooth()
 
 		if score := frechetDistanceShapes(normalizedCompoundShape, entryS); score < bestDistCompound {
 			bestIndexCompound = i
@@ -68,8 +68,8 @@ func (db *SymbolStore) match(rec Record) (rune, bool) {
 	return db.entries[bestIndexShape].R, false
 }
 
-// smoothTo applies a moving average smoothing
-func (sh Shape) smoothTo() Shape {
+// smooth applies a moving average smoothing
+func (sh Shape) smooth() Shape {
 	out := make(Shape, len(sh))
 	for i, p := range sh {
 		if i == 0 || i == len(sh)-1 {
@@ -169,24 +169,27 @@ func (sh Shape) PixelImg() image.Image {
 }
 
 func (sh Shape) AngularGraph() image.Image {
-	return graph(sh.smoothTo().directions())
+	return graph(sh.smooth().directions())
 	// return graph(diff(sh.smoothTo().directions()))
 }
 
 // Segment segments the given shape into
 // simpler elementary blocks
 func (sh Shape) Segment() (out []ShapeAtom) {
-	angles := sh.smoothTo().directions()
+	// sh = sh.smooth()
+	angles := sh.smooth().directions()
+
 	// adjust the scale and build Pos array
 	min, _ := minMax(angles)
 	toSegment := make([]Pos, len(angles))
 	for i, a := range angles {
 		toSegment[i] = Pos{X: float32(i), Y: a - min}
 	}
+
 	// compute the sub shapes
 	clusters := segmentation(toSegment)
-	// identify each subshape
 
+	// identify each subshape
 	for _, cl := range clusters {
 		subShape := sh[cl[0]:cl[1]]
 		out = append(out, subShape.identify())
@@ -195,7 +198,7 @@ func (sh Shape) Segment() (out []ShapeAtom) {
 }
 
 func (sh Shape) AngleClustersGraph() image.Image {
-	angles := sh.smoothTo().directions()
+	angles := sh.smooth().directions()
 	// adjust the scale
 	min, _ := minMax(angles)
 	toSegment := make([]Pos, len(angles))

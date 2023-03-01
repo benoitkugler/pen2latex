@@ -106,10 +106,10 @@ func (km kmOut) wcss() fl {
 	return s
 }
 
-// return true if at least one class has less than two points
+// return true if at least one class has less than 3 points
 func (cls clusters) isDegenerated() bool {
 	for _, size := range cls.clusterSize {
-		if size <= 1 {
+		if size <= 3 {
 			return true
 		}
 	}
@@ -232,16 +232,24 @@ func segmentation(angles []Pos) []clusterRange {
 	}
 
 	outliers := bestWCSSK.detectOutliers()
-
 	clusters := segmentByAngleBreak(angles, outliers)
 	return clusters
 }
 
 func segmentByAngleBreak(angles []Pos, outliers map[int]bool) []clusterRange {
-	const angleBreak = 90
+	const angleBreak = 80
 
 	var currentRangeStart int
 	var out []clusterRange
+
+	push := func(cr clusterRange) {
+		clusterSize := cr[1] - cr[0] + 1
+		if clusterSize <= 3 { // artefacts
+			return
+		}
+		out = append(out, cr)
+	}
+
 	var (
 		// ignoring outliers
 		previous      fl
@@ -256,14 +264,14 @@ func segmentByAngleBreak(angles []Pos, outliers map[int]bool) []clusterRange {
 			continue
 		}
 		if math.Abs(float64(current.Y-previous)) >= angleBreak { // new cluster, push the previous
-			out = append(out, clusterRange{currentRangeStart, previousIndex + 1})
+			push(clusterRange{currentRangeStart, previousIndex + 1})
 			currentRangeStart = i
 		}
 		previous = current.Y
 		previousIndex = i
 	}
 	if currentRangeStart < len(angles)-1 {
-		out = append(out, clusterRange{currentRangeStart, len(angles)})
+		push(clusterRange{currentRangeStart, len(angles)})
 	}
 
 	return out

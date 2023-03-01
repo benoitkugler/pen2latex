@@ -1,6 +1,10 @@
 package symbols
 
-import "math"
+import (
+	"math"
+)
+
+// fitting algorithm for "elementary" shapes
 
 /*
 An Algorithm for Automatically Fitting Digitized Curves
@@ -9,7 +13,7 @@ from "Graphics Gems", Academic Press, 1990
 */
 
 // panic if len(d) < 3
-// return the quadratic error
+// return the average quadratic error
 func fitCubicBezier(points []Pos) (BezierC, fl) {
 	const maxIterations = 8 // tuned experimentally
 
@@ -324,13 +328,25 @@ func (sh Shape) identify() ShapeAtom {
 		return Segment{start, end}
 	}
 
-	segment, errSegment := fitSegment(sh)
 	bezier, errBezier := fitCubicBezier(sh)
+	segment, errSegment := fitSegment(sh)
 	circle, errCircle := fitCircle(sh)
+
+	// Adjust the raw error with heuristics
+
 	// reject circle with large radius by imposing a center
 	// inside the shape
 	if bbox := sh.BoundingBox(); !bbox.contains(circle.Center) {
 		errCircle = inf
+	}
+
+	// give priority to segment for "almost" linear shapes
+	if errSegment < 1 { // err is average for
+		return segment
+	} else if errSegment > errBezier {
+		if (errSegment-errBezier)/errSegment < 0.05 { // 5%
+			return segment
+		}
 	}
 
 	if errSegment <= errCircle && errSegment <= errBezier {
