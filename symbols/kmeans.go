@@ -116,47 +116,6 @@ func (cls clusters) isDegenerated() bool {
 	return false
 }
 
-// maxInnerStep returns the worst distance between two points in
-// a cluster
-func (km kmOut) maxInnerStep() fl {
-	var worst fl
-	for i, size := range km.cls.clusterSize {
-		// hard penalize small clusters
-		if size <= 1 {
-			return inf
-		}
-
-		m := maxStepInCluster(km.points, km.cls, uint8(i))
-		if m > worst {
-			worst = m
-		}
-	}
-	return worst
-}
-
-// return the max length between two consecutive points
-// in the cluster i
-func maxStepInCluster(points []Pos, clusters clusters, cl uint8) fl {
-	previousInCluster := -1
-	var max fl
-	for i := 0; i < len(points); i++ {
-		if clusters.pointClusters[i] == cl { // found the next point in cluster
-
-			if previousInCluster == -1 { // first point
-				previousInCluster = i
-				continue
-			}
-
-			if d := distP(points[previousInCluster], points[i]); d > max {
-				max = d
-			}
-
-			previousInCluster = i
-		}
-	}
-	return max
-}
-
 func detectOutlierInCluster(points []Pos, cls clusters, center Pos, cl uint8) []int {
 	// average distance to center in cluster
 	Nk := cls.clusterSize[cl]
@@ -216,9 +175,11 @@ type clusterRange [2]int // start, end (excluded, in slice syntax)
 // points
 // outlier are not present in the returned ranges
 func segmentation(angles []Pos) []clusterRange {
+	const KMax = 5
+
 	// run kmeans for each K and pick the best WCSS to detect outliers
 	bestWCSSK, bestWCSS := kmOut{}, inf
-	for K := 1; K <= 5; K++ {
+	for K := 1; K <= KMax; K++ {
 		kmeansOut := kmeans(angles, K)
 
 		if kmeansOut.cls.isDegenerated() {

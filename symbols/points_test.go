@@ -2,7 +2,6 @@ package symbols
 
 import (
 	"math/rand"
-	"reflect"
 	"testing"
 )
 
@@ -38,30 +37,6 @@ func TestEmptyRect(t *testing.T) {
 		empty.enlarge(p)
 		if empty != (Rect{UL: p, LR: p}) {
 			t.Fatal()
-		}
-	}
-}
-
-func TestShape_normalizeY(t *testing.T) {
-	tests := []struct {
-		sh    Shape
-		scope Rect
-		want  Shape
-	}{
-		{
-			Shape{{0, 0}, {0, 10}, {10, 10}},
-			Rect{UL: Pos{0, 0}, LR: Pos{0, EMHeight}}, // no transformation
-			Shape{{0, 0}, {0, 10}, {10, 10}},
-		},
-		{
-			Shape{{0, 0}, {0, 10}, {10, 10}},
-			Rect{UL: Pos{0, 0}, LR: Pos{0, EMHeight / 2}},
-			Shape{{0, 0}, {0, 20}, {10, 20}},
-		},
-	}
-	for _, tt := range tests {
-		if got := tt.sh.normalizeY(tt.scope); !reflect.DeepEqual(got, tt.want) {
-			t.Errorf("Shape.normalizeY() = %v, want %v", got, tt.want)
 		}
 	}
 }

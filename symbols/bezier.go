@@ -27,12 +27,12 @@ func (b bezierQ) eval(t fl) (out Pos) {
 	return
 }
 
-// BezierC is a cubic Bezier curve
-type BezierC struct {
+// Bezier is a cubic Bezier curve
+type Bezier struct {
 	P0, P1, P2, P3 Pos
 }
 
-func (b BezierC) eval(t fl) (out Pos) {
+func (b Bezier) eval(t fl) (out Pos) {
 	t1 := 1 - t
 	A := t1 * t1 * t1
 	B := 3 * t1 * t1 * t
@@ -43,7 +43,7 @@ func (b BezierC) eval(t fl) (out Pos) {
 	return
 }
 
-func (knots Shape) ToBezierCurves() []BezierC {
+func (knots Shape) ToBezierCurves() []Bezier {
 	if len(knots) <= 1 {
 		return nil
 	}
@@ -58,7 +58,7 @@ func (knots Shape) ToBezierCurves() []BezierC {
 		// P2 = 2P1 – P0
 		P2.X = 2*P1.X - knots[0].X
 		P2.Y = 2*P1.Y - knots[0].Y
-		return []BezierC{{P0: knots[0], P1: P1, P2: P2, P3: knots[1]}}
+		return []Bezier{{P0: knots[0], P1: P1, P2: P2, P3: knots[1]}}
 	}
 
 	// Calculate first Bezier control points
@@ -84,7 +84,7 @@ func (knots Shape) ToBezierCurves() []BezierC {
 	y := getFirstControlPoints(rhs)
 
 	// Fill output arrays.
-	out := make([]BezierC, n)
+	out := make([]Bezier, n)
 	for i := range out {
 		// First control point
 		P1 := Pos{x[i], y[i]}
@@ -95,7 +95,7 @@ func (knots Shape) ToBezierCurves() []BezierC {
 		} else {
 			P2 = Pos{(knots[n].X + x[n-1]) / 2, (knots[n].Y + y[n-1]) / 2}
 		}
-		out[i] = BezierC{P0: knots[i], P1: P1, P2: P2, P3: knots[i+1]}
+		out[i] = Bezier{P0: knots[i], P1: P1, P2: P2, P3: knots[i+1]}
 	}
 	return out
 }

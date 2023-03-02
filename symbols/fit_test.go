@@ -1,7 +1,6 @@
 package symbols
 
 import (
-	"encoding/json"
 	"fmt"
 	"image"
 	"image/color"
@@ -9,7 +8,6 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"reflect"
 	"testing"
 
 	tu "github.com/benoitkugler/pen2latex/testutils"
@@ -54,7 +52,7 @@ func graph2D(sh Shape) image.Image {
 	return out
 }
 
-func generateBezierPoints(b BezierC) Shape {
+func generateBezierPoints(b Bezier) Shape {
 	var sh Shape
 	for t := range [20]int{} {
 		sh = append(sh, b.eval(fl(t)/20))
@@ -86,17 +84,25 @@ func circle(center Pos, radius fl) Shape {
 	return out
 }
 
+func ellipse(center Pos, ra, rb fl) Shape {
+	s := circle(Pos{}, 1)
+	for i, p := range s {
+		s[i] = Pos{ra * p.X, rb * p.Y}.Add(center)
+	}
+	return s
+}
+
 func TestFitBezier(t *testing.T) {
 	tmpDir := os.TempDir()
 
-	origin := BezierC{Pos{}, Pos{30, 40}, Pos{50, -40}, Pos{60, 0}}
+	origin := Bezier{Pos{}, Pos{30, 40}, Pos{50, -40}, Pos{60, 0}}
 	points := generateBezierPoints(origin)
 	printShape(t, points, filepath.Join(tmpDir, "bezier_cube1_origin.png"))
 
 	fitted, _ := fitCubicBezier(points)
 	printShape(t, generateBezierPoints(fitted), filepath.Join(tmpDir, "bezier_cube1_fitted.png"))
 
-	origin = BezierC{Pos{}, Pos{0, 40}, Pos{50, 40}, Pos{60, 0}}
+	origin = Bezier{Pos{}, Pos{0, 40}, Pos{50, 40}, Pos{60, 0}}
 	points = generateBezierPoints(origin)
 	printShape(t, points, filepath.Join(tmpDir, "bezier_cube2_origin.png"))
 
@@ -104,7 +110,7 @@ func TestFitBezier(t *testing.T) {
 	printShape(t, generateBezierPoints(fitted), filepath.Join(tmpDir, "bezier_cube2_fitted.png"))
 
 	// linear shape
-	origin = BezierC{Pos{}, Pos{30, 30}, Pos{40, 40}, Pos{60, 60}}
+	origin = Bezier{Pos{}, Pos{30, 30}, Pos{40, 40}, Pos{60, 60}}
 	points = generateBezierPoints(origin)
 	printShape(t, points, filepath.Join(tmpDir, "bezier_cube3_origin.png"))
 
@@ -122,13 +128,26 @@ func TestFitBezier(t *testing.T) {
 	tu.Assert(t, errCircle <= errCube)
 }
 
-func TestIdentify(t *testing.T) {
-	origin := BezierC{Pos{}, Pos{0, 40}, Pos{50, 40}, Pos{60, 0}}
-	points := generateBezierPoints(origin)
-	tu.Assert(t, points.identify().Kind() == SAKBezier)
+func almostEqual(u, v fl) bool     { return abs(u-v) < 1e-4 }
+func almostEqualPos(u, v Pos) bool { return almostEqual(u.X, v.X) && almostEqual(u.Y, v.Y) }
 
-	points = circle(Pos{30, 30}, 20)
+func TestFitEllipse(t *testing.T) {
+	got, dist := fitEllipse(circle(Pos{30, 30}, 20))
+	tu.Assert(t, almostEqual(dist, 0))
+	tu.Assert(t, almostEqualPos(got.Center, Pos{30, 30}) && almostEqualPos(got.Radius, Pos{20, 20}))
+
+	got, dist = fitEllipse(ellipse(Pos{5, 5}, 20, 10))
+	tu.Assert(t, almostEqual(dist, 0))
+	tu.Assert(t, almostEqualPos(got.Center, Pos{5, 5}) && almostEqualPos(got.Radius, Pos{20, 10}))
+}
+
+func TestIdentify(t *testing.T) {
+	points := circle(Pos{30, 30}, 20)
 	tu.Assert(t, points.identify().Kind() == SAKCircle)
+
+	origin := Bezier{Pos{}, Pos{0, 40}, Pos{50, 40}, Pos{60, 0}}
+	points = generateBezierPoints(origin)
+	tu.Assert(t, points.identify().Kind() == SAKBezier)
 }
 
 var realShapes = []struct {
@@ -279,19 +298,23 @@ func assertKinds(t *testing.T, got []ShapeAtom, expected []ShapeAtomKind) {
 func TestRealSample(t *testing.T) {
 	for _, v := range realShapes {
 		for _, s := range v.inputs {
-			assertKinds(t, s.Segment(), v.expected)
+			assertKinds(t, s.SubShapes().Identify(), v.expected)
 		}
 	}
 }
 
-func TestJSON(t *testing.T) {
-	s := ShapeFootprint{Circle{}, BezierC{}, Segment{}}
-	b, err := json.Marshal(s)
-	tu.AssertNoErr(t, err)
+func TestNoisyCircle(t *testing.T) {
+	// o with missing points
+	noisyO := Shape{
+		{X: 24.0, Y: 18.3}, {X: 23.0, Y: 17.3}, {X: 22.0, Y: 17.3}, {X: 21.0, Y: 17.3}, {X: 20.0, Y: 17.3}, {X: 19.0, Y: 17.3}, {X: 18.0, Y: 17.3}, {X: 18.0, Y: 18.3}, {X: 17.0, Y: 18.3}, {X: 17.0, Y: 20.3}, {X: 16.0, Y: 21.3}, {X: 16.0, Y: 22.3}, {X: 16.0, Y: 24.3}, {X: 16.0, Y: 25.3}, {X: 17.0, Y: 27.3}, {X: 17.0, Y: 28.3}, {X: 18.0, Y: 29.3}, {X: 19.0, Y: 29.3}, {X: 20.0, Y: 29.3}, {X: 21.0, Y: 29.3}, {X: 22.0, Y: 29.3}, {X: 23.0, Y: 28.3}, {X: 23.0, Y: 26.3}, {X: 24.0, Y: 25.3}, {X: 24.0, Y: 23.3}, {X: 24.0, Y: 21.3}, {X: 24.0, Y: 19.3}, {X: 24.0, Y: 17.3}, {X: 24.0, Y: 16.3},
+	}
 
-	var s2 ShapeFootprint
-	err = json.Unmarshal(b, &s2)
-	tu.AssertNoErr(t, err)
+	tu.Assert(t, noisyO.identify().Kind() == SAKCircle)
+}
 
-	tu.Assert(t, reflect.DeepEqual(s, s2))
+func TestVerticalLine(t *testing.T) {
+	vert := Shape{
+		{X: 25.0, Y: 24.3}, {X: 25.0, Y: 23.3}, {X: 25.0, Y: 22.3}, {X: 25.0, Y: 21.3}, {X: 25.0, Y: 19.3}, {X: 25.0, Y: 18.3},
+	}
+	tu.Assert(t, vert.identify().Kind() == SAKSegment)
 }

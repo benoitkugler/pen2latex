@@ -13,7 +13,7 @@ func (line *Line) Insert(rec symbols.Record, db *symbols.SymbolStore) {
 	node, scope, insertPos := line.FindNode(rec.Shape().BoundingBox())
 	fmt.Printf("enclosing box %v %v %p\n", scope, insertPos, node)
 
-	r, preferCompound := db.Lookup(rec, scope)
+	r, preferCompound := db.Lookup(rec)
 
 	fmt.Println(preferCompound)
 	// if a compound symbol is matched, simply update the previous char

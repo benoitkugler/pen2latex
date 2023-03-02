@@ -63,48 +63,82 @@ func TestSegment_distance(t *testing.T) {
 
 func TestBezierC_distance(t *testing.T) {
 	tests := []struct {
-		U     BezierC
-		V     BezierC
+		U     Bezier
+		V     Bezier
 		want  trans
 		want1 fl
 	}{
 		{
-			BezierC{Pos{}, Pos{}, Pos{}, Pos{10, 0}}, BezierC{Pos{}, Pos{}, Pos{}, Pos{10, 0}}, id, 0,
+			Bezier{Pos{}, Pos{}, Pos{}, Pos{10, 0}}, Bezier{Pos{}, Pos{}, Pos{}, Pos{10, 0}}, id, 0,
 		},
 		{
-			BezierC{Pos{}, Pos{}, Pos{}, Pos{10, 0}}, BezierC{Pos{10, 0}, Pos{10, 0}, Pos{10, 0}, Pos{20, 0}}, trans{s: 1, t: Pos{10, 0}}, 0,
+			Bezier{Pos{}, Pos{}, Pos{}, Pos{10, 0}}, Bezier{Pos{10, 0}, Pos{10, 0}, Pos{10, 0}, Pos{20, 0}}, trans{s: 1, t: Pos{10, 0}}, 0,
 		},
 	}
 	for _, tt := range tests {
 		got := tt.U.getMapTo(tt.V)
-		got1 := tt.U.scale(got).(BezierC).distance(tt.V)
+		got1 := tt.U.scale(got).(Bezier).distance(tt.V)
 		tu.Assert(t, got == tt.want)
 		tu.Assert(t, got1 == tt.want1)
 	}
 }
 
-func Test_bestShapeDistance(t *testing.T) {
+func Test_distanceAtoms(t *testing.T) {
 	tests := []struct {
 		U    []ShapeAtom
 		V    []ShapeAtom
 		want fl
 	}{
 		{
-			[]ShapeAtom{Circle{Radius: 10}}, []ShapeAtom{Circle{Radius: 10}}, 0,
+			[]ShapeAtom{Circle{Radius: Pos{10, 10}}}, []ShapeAtom{Circle{Radius: Pos{10, 10}}}, 0,
 		},
 		{
-			[]ShapeAtom{Circle{Radius: 10}, Circle{Radius: 30}},
-			[]ShapeAtom{Circle{Radius: 30}, Circle{Radius: 10}},
+			[]ShapeAtom{Circle{Radius: Pos{10, 10}}, Circle{Radius: Pos{30, 30}}},
+			[]ShapeAtom{Circle{Radius: Pos{30, 30}}, Circle{Radius: Pos{10, 10}}},
 			0,
 		},
 		{
-			[]ShapeAtom{Circle{Radius: 10}, Segment{End: Pos{10, 0}}},
-			[]ShapeAtom{Segment{End: Pos{10, 0}}, Circle{Radius: 10}},
+			[]ShapeAtom{Circle{Radius: Pos{10, 10}}, Segment{End: Pos{10, 0}}},
+			[]ShapeAtom{Segment{End: Pos{10, 0}}, Circle{Radius: Pos{10, 10}}},
 			0,
 		},
 	}
 	for _, tt := range tests {
-		got := bestShapeDistance(tt.U, tt.V)
+		got, _ := distanceFootprints(tt.U, tt.V)
+		sym, _ := distanceFootprints(tt.V, tt.U)
 		tu.Assert(t, got == tt.want)
+		tu.Assert(t, got == sym)
 	}
+}
+
+func TestDistanceSynthetic(t *testing.T) {
+	b := ShapeFootprint{
+		Segment{Start: Pos{0, 10}, End: Pos{0, 0}},     // |
+		Circle{Center: Pos{3, 3}, Radius: Pos{3, 2.8}}, // o
+	}
+	b2 := ShapeFootprint{
+		Circle{Center: Pos{4, 3}, Radius: Pos{3, 2.8}}, // o
+		Segment{Start: Pos{0, 9}, End: Pos{0, 0}},      // |
+	}
+
+	d := ShapeFootprint{
+		Circle{Center: Pos{3, 3}, Radius: Pos{3, 2.8}}, // o
+		Segment{Start: Pos{6, 10}, End: Pos{6, 0}},     // |
+	}
+
+	db, _ := distanceFootprints(d, b)
+	bd, _ := distanceFootprints(b, d)
+	bb2, _ := distanceFootprints(b, b2)
+	tu.Assert(t, db == bd)
+	tu.Assert(t, bd > bb2)
+}
+
+func TestDistanceOo(t *testing.T) {
+	o := ShapeFootprint{Circle{Radius: Pos{3, 3}}}
+	O := ShapeFootprint{Circle{Radius: Pos{5, 4.5}}}
+
+	oo, troo := distanceFootprints(o, o)
+	_, trOo := distanceFootprints(o, O)
+	tu.Assert(t, oo == 0)
+	tu.Assert(t, troo.det() < trOo.det())
 }

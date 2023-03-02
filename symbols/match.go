@@ -1,60 +1,58 @@
 package symbols
 
 import (
-	"fmt"
-	"image"
-	"image/color"
 	"math"
 )
 
-// normalizeTo computes the affine 2D transformation sending the shape
-// bbox to [target] (typically the reference character),
-// and applies it to the coordinates of the shape
-func (sh Shape) normalizeTo(target Rect) Shape {
-	shapeBB := sh.BoundingBox()
-	if shapeBB.IsEmpty() || target.IsEmpty() {
-		return sh
-	}
-	// we look for a affine function f(x,y) = (ax + b, cy + d)
-	// such that f(shapeBB) = target
-	// a := (target.LR.X - target.UL.X) / (shapeBB.LR.X - shapeBB.UL.X)
-	b := target.LR.X - 1*shapeBB.LR.X
-
-	// c := (target.LR.Y - target.UL.Y) / (shapeBB.LR.Y - shapeBB.UL.Y)
-	d := target.LR.Y - 1*shapeBB.LR.Y
-
-	out := make(Shape, len(sh))
-	for i, p := range sh {
-		out[i] = Pos{1*p.X + b, 1*p.Y + d}
-	}
-	return out
-}
-
-func (db *SymbolStore) match(rec Record) (rune, bool) {
+// [Lookup] performs approximate matching by finding
+// the closest shape in the database and returning its rune.
+// More precisely, it compares scores for [rec.Shape()] and [rec.Compound()]
+// returning which is better in [preferCompound].
+//
+// It will panic is the store is empty.
+//
+// # Matching overview
+//
+// To match an input [Record] against the database,
+// we perform the following steps :
+//   - for each [Shape] in the record, segment it in elementary [ShapeAtom], yielding a [ShapeFootprint]
+//   - for each symbol entrie in the database, compute the distance between its footprint and the input
+//   - TODO: if several results hae the lower distance, use the one with the lower mapping determinant
+//   - perform these steps for the last [Shape] and for the whole [Symbol], and keep the best
+func (db *SymbolStore) Lookup(rec Record) (r rune, preferCompound bool) {
 	var (
-		bestIndexCompound, bestIndexShape int
-		bestDistCompound, bestDistShape   float32 = math.MaxFloat32, math.MaxFloat32
+		bestIndexCompound, bestIndexLast int
+		bestDistCompound, bestDistLast   fl = inf, inf
+		bestTrCompound, bestTrLast       trans
 	)
 
-	compoundShape := rec.Compound().Union()
-	shape := rec.Shape()
+	compound := rec.Compound().SegmentToAtoms()
+	last := rec.Shape().SubShapes().Identify()
 
 	for i, entry := range db.entries {
-		entryS := entry.Shape.smooth()
-		entryBB := entryS.BoundingBox()
-		// we align the input bounding box to each of the candidate
-		normalizedShape := shape.normalizeTo(entryBB).smooth()
-		normalizedCompoundShape := compoundShape.normalizeTo(entryBB).smooth()
-
-		if score := frechetDistanceShapes(normalizedCompoundShape, entryS); score < bestDistCompound {
-			bestIndexCompound = i
-			bestDistCompound = score
+		distCompound, trCompound := inf, trans{}
+		distLast, trLast := inf, trans{}
+		// only try symbols with same number of atoms
+		if len(compound) == len(entry.Shape) {
+			distCompound, trCompound = distanceFootprints(compound, entry.Shape)
 		}
-		if score := frechetDistanceShapes(normalizedShape, entryS); score < bestDistShape {
-			bestIndexShape = i
-			bestDistShape = score
+		if len(last) == len(entry.Shape) {
+			distLast, trLast = distanceFootprints(last, entry.Shape)
+		}
+
+		if distCompound < bestDistCompound {
+			bestIndexCompound = i
+			bestDistCompound = distCompound
+			bestTrCompound = trCompound
+		}
+		if distLast < bestDistLast {
+			bestIndexLast = i
+			bestDistLast = distLast
+			bestTrLast = trLast
 		}
 	}
+
+	_, _ = bestTrLast.det(), bestTrCompound.det()
 
 	// If shape is adjacent to compound, always prefer compound
 	// do not normalize !
@@ -62,10 +60,10 @@ func (db *SymbolStore) match(rec Record) (rune, bool) {
 		return db.entries[bestIndexCompound].R, true
 	}
 
-	if bestDistCompound < bestDistShape {
+	if bestDistCompound < bestDistLast {
 		return db.entries[bestIndexCompound].R, true
 	}
-	return db.entries[bestIndexShape].R, false
+	return db.entries[bestIndexLast].R, false
 }
 
 // smooth applies a moving average smoothing
@@ -97,7 +95,7 @@ func (sh Shape) directions() []fl {
 		start, end := sh[i], sh[i+1]
 		u := Pos{X: end.X - start.X, Y: end.Y - start.Y}
 
-		// we cant a "continuous" angle, that is we want to avoid
+		// we want a "continuous" angle, that is we want to avoid
 		// jumps coming from the principal measure of the angle
 		// To do so, we compute angles as delta from the previous
 		// direction
@@ -136,47 +134,7 @@ func minMax(values []fl) (min, max fl) {
 	return min, max
 }
 
-// return a rough version of a graph (i, values[i])
-func graph(values []fl) image.Image {
-	// adjust the graph height
-	min, max := minMax(values)
-	out := image.NewGray(image.Rect(0, int(-max)/2, len(values), int(-min)/2))
-	for i, v := range values {
-		out.SetGray(i, int(-v)/2, color.Gray{255})
-	}
-	return out
-}
-
-// diff compute the discrete derivative, return a slice with length n-1
-func diff(values []fl) []fl {
-	if len(values) <= 2 {
-		return nil
-	}
-	out := make([]fl, len(values)-1)
-	for i := range out {
-		out[i] = values[i+1] - values[i]
-	}
-	return out
-}
-
-func (sh Shape) PixelImg() image.Image {
-	rect := sh.BoundingBox()
-	img := image.NewGray(image.Rect(int(rect.LR.X), int(rect.LR.Y), int(rect.UL.X), int(rect.UL.Y)))
-	for _, p := range sh {
-		img.SetGray(int(p.X), int(p.Y), color.Gray{255})
-	}
-	return img
-}
-
-func (sh Shape) AngularGraph() image.Image {
-	return graph(sh.smooth().directions())
-	// return graph(diff(sh.smoothTo().directions()))
-}
-
-// Segment segments the given shape into
-// simpler elementary blocks
-func (sh Shape) Segment() (out []ShapeAtom) {
-	// sh = sh.smooth()
+func (sh Shape) SubShapes() (out Symbol) {
 	angles := sh.smooth().directions()
 
 	// adjust the scale and build Pos array
@@ -192,30 +150,30 @@ func (sh Shape) Segment() (out []ShapeAtom) {
 	// identify each subshape
 	for _, cl := range clusters {
 		subShape := sh[cl[0]:cl[1]]
-		out = append(out, subShape.identify())
+		out = append(out, subShape)
 	}
 	return out
 }
 
-func (sh Shape) AngleClustersGraph() image.Image {
-	angles := sh.smooth().directions()
-	// adjust the scale
-	min, _ := minMax(angles)
-	toSegment := make([]Pos, len(angles))
-	for i, a := range angles {
-		toSegment[i] = Pos{X: float32(i), Y: a - min}
+// SegmentToAtoms segments the given symbol into
+// simpler elementary blocks
+func (sy Symbol) SegmentToAtoms() (out ShapeFootprint) { return sy.subShapes().Identify() }
+
+// Segment segments the given shape into
+// simpler elementary blocks
+func (sy Symbol) subShapes() (out Symbol) {
+	for _, subShape := range sy {
+		// segment each subshape
+		out = append(out, subShape.SubShapes()...)
 	}
+	return out
+}
 
-	clusters := segmentation(toSegment)
-	fmt.Println("K", len(clusters))
-
-	// min, max := minMax(angles)
-	// out := image.NewNRGBA(image.Rect(0, int(-max)/2, len(angles), int(-min)/2))
-	// for i, v := range angles {
-	// 	cl := int(clusters[i]) + 1
-	// 	// color according to the cluster
-	// 	out.SetNRGBA(i, int(-v)/2, color.NRGBA{uint8(cl * 255 / K), 0, 0, 255})
-	// }
-
-	return nil
+func (sy Symbol) Identify() (out []ShapeAtom) {
+	out = make([]ShapeAtom, len(sy))
+	for i, subShape := range sy {
+		// identify each subshape
+		out[i] = subShape.identify()
+	}
+	return out
 }

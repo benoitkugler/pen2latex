@@ -1,0 +1,133 @@
+package fyneui
+
+
+// normalizeTo computes the affine 2D transformation sending the shape
+// bbox to [target] (typically the reference character),
+// and applies it to the coordinates of the shape
+func (sh Shape) normalizeTo(target Rect) Shape {
+	shapeBB := sh.BoundingBox()
+	if shapeBB.IsEmpty() || target.IsEmpty() {
+		return sh
+	}
+	// we look for a affine function f(x,y) = (ax + b, cy + d)
+	// such that f(shapeBB) = target
+	// a := (target.LR.X - target.UL.X) / (shapeBB.LR.X - shapeBB.UL.X)
+	b := target.LR.X - 1*shapeBB.LR.X
+
+	// c := (target.LR.Y - target.UL.Y) / (shapeBB.LR.Y - shapeBB.UL.Y)
+	d := target.LR.Y - 1*shapeBB.LR.Y
+
+	out := make(Shape, len(sh))
+	for i, p := range sh {
+		out[i] = Pos{1*p.X + b, 1*p.Y + d}
+	}
+	return out
+}
+
+
+// return a rough version of a graph (i, values[i])
+func graph(values []fl) image.Image {
+	// adjust the graph height
+	min, max := minMax(values)
+	out := image.NewGray(image.Rect(0, int(-max)/2, len(values), int(-min)/2))
+	for i, v := range values {
+		out.SetGray(i, int(-v)/2, color.Gray{255})
+	}
+	return out
+}
+
+// diff compute the discrete derivative, return a slice with length n-1
+func diff(values []fl) []fl {
+	if len(values) <= 2 {
+		return nil
+	}
+	out := make([]fl, len(values)-1)
+	for i := range out {
+		out[i] = values[i+1] - values[i]
+	}
+	return out
+}
+
+func (sh Shape) PixelImg() image.Image {
+	rect := sh.BoundingBox()
+	img := image.NewGray(image.Rect(int(rect.LR.X), int(rect.LR.Y), int(rect.UL.X), int(rect.UL.Y)))
+	for _, p := range sh {
+		img.SetGray(int(p.X), int(p.Y), color.Gray{255})
+	}
+	return img
+}
+
+func (sh Shape) AngularGraph() image.Image {
+	return graph(sh.smooth().directions())
+	// return graph(diff(sh.smoothTo().directions()))
+}
+
+
+func (sh Shape) AngleClustersGraph() image.Image {
+	angles := sh.smooth().directions()
+	// adjust the scale
+	min, _ := minMax(angles)
+	toSegment := make([]Pos, len(angles))
+	for i, a := range angles {
+		toSegment[i] = Pos{X: float32(i), Y: a - min}
+	}
+
+	clusters := segmentation(toSegment)
+	fmt.Println("K", len(clusters))
+
+	// min, max := minMax(angles)
+	// out := image.NewNRGBA(image.Rect(0, int(-max)/2, len(angles), int(-min)/2))
+	// for i, v := range angles {
+	// 	cl := int(clusters[i]) + 1
+	// 	// color according to the cluster
+	// 	out.SetNRGBA(i, int(-v)/2, color.NRGBA{uint8(cl * 255 / K), 0, 0, 255})
+	// }
+
+	return nil
+}
+
+// normalizeY compute the transformation sending [scope]
+// to the reference EM rect, and applies it to the Y coordinates of the
+// shape
+func (sh Shape) normalizeY(scope Rect) Shape {
+	if scope.IsEmpty() {
+		return sh
+	}
+	// we look for a function f(t) = at + b
+	// where f(scope) = em ref
+	// that is
+	// f(scope.UL.Y) = 0
+	// f(scope.LR.Y) = EMHeight
+	a := (0 - EMHeight) / (scope.UL.Y - scope.LR.Y)
+	b := 0 - a*scope.UL.Y
+	out := make(Shape, len(sh))
+	for i, c := range sh {
+		out[i] = Pos{c.X, a*c.Y + b}
+	}
+	return out
+}
+
+
+func TestShape_normalizeY(t *testing.T) {
+	tests := []struct {
+		sh    Shape
+		scope Rect
+		want  Shape
+	}{
+		{
+			Shape{{0, 0}, {0, 10}, {10, 10}},
+			Rect{UL: Pos{0, 0}, LR: Pos{0, EMHeight}}, // no transformation
+			Shape{{0, 0}, {0, 10}, {10, 10}},
+		},
+		{
+			Shape{{0, 0}, {0, 10}, {10, 10}},
+			Rect{UL: Pos{0, 0}, LR: Pos{0, EMHeight / 2}},
+			Shape{{0, 0}, {0, 20}, {10, 20}},
+		},
+	}
+	for _, tt := range tests {
+		if got := tt.sh.normalizeY(tt.scope); !reflect.DeepEqual(got, tt.want) {
+			t.Errorf("Shape.normalizeY() = %v, want %v", got, tt.want)
+		}
+	}
+}

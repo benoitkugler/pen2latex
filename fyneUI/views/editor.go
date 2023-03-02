@@ -35,7 +35,7 @@ func showEditor(db *symbols.SymbolStore) *fyne.Container {
 
 		shape := rec.Recorder.Current().Shape()
 		fmt.Println("Shape", shape)
-		segments := shape.Segment()
+		segments := shape.SubShapes().Identify()
 		fmt.Println("K", len(segments), segments)
 		imag := renderAtoms(segments, shape.BoundingBox())
 		savePng(imag)
@@ -107,15 +107,15 @@ func posToFixed(pos symbols.Pos) fixed.Point26_6 {
 
 func renderAtom(atom symbols.ShapeAtom, rec *rasterx.Stroker) {
 	switch atom := atom.(type) {
-	case symbols.BezierC:
+	case symbols.Bezier:
 		rec.Start(posToFixed(atom.P0))
 		rec.CubeBezier(posToFixed(atom.P1), posToFixed(atom.P2), posToFixed(atom.P3))
 		rec.Stop(false)
 		// draw control points
-		rasterx.AddCircle(float64(atom.P1.X), float64(atom.P1.Y), 3, &rec.Filler)
-		rasterx.AddCircle(float64(atom.P2.X), float64(atom.P2.Y), 3, &rec.Filler)
+		rasterx.AddCircle(float64(atom.P1.X), float64(atom.P1.Y), 2, &rec.Filler)
+		rasterx.AddCircle(float64(atom.P2.X), float64(atom.P2.Y), 2, &rec.Filler)
 	case symbols.Circle:
-		rasterx.AddCircle(float64(atom.Center.X), float64(atom.Center.Y), float64(atom.Radius), rec)
+		rasterx.AddEllipse(float64(atom.Center.X), float64(atom.Center.Y), float64(atom.Radius.X), float64(atom.Radius.Y), 0, rec)
 	case symbols.Segment:
 		rec.Start(posToFixed(atom.Start))
 		rec.Line(posToFixed(atom.End))

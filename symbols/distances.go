@@ -68,6 +68,8 @@ type trans struct {
 
 var id = trans{s: 1, t: Pos{}}
 
+func (tr *trans) det() fl { return tr.s * tr.s }
+
 func (tr trans) apply(p Pos) Pos {
 	return Pos{
 		X: tr.s*p.X + tr.t.X,
@@ -80,11 +82,11 @@ func (seg Segment) scale(tr trans) ShapeAtom {
 }
 
 func (ci Circle) scale(tr trans) ShapeAtom {
-	return Circle{Center: tr.apply(ci.Center), Radius: abs(tr.s) * ci.Radius}
+	return Circle{Center: tr.apply(ci.Center), Radius: ci.Radius.ScaleTo(abs(tr.s))}
 }
 
-func (b BezierC) scale(tr trans) ShapeAtom {
-	return BezierC{tr.apply(b.P0), tr.apply(b.P1), tr.apply(b.P2), tr.apply(b.P3)}
+func (b Bezier) scale(tr trans) ShapeAtom {
+	return Bezier{tr.apply(b.P0), tr.apply(b.P1), tr.apply(b.P2), tr.apply(b.P3)}
 }
 
 func (U Segment) distance(V Segment) fl {
@@ -107,23 +109,25 @@ func (U Segment) getMapTo(V Segment) trans {
 }
 
 func (U Circle) distance(V Circle) fl {
-	dr := U.Radius - V.Radius
-	return (U.Center.Sub(V.Center).NormSquared() + dr*dr) / 2
+	dc := U.Center.Sub(V.Center).NormSquared()
+	dr := U.Radius.Sub(V.Radius).NormSquared()
+	return (dc + dr) / 2
 }
 
-// always return 0
 func (U Circle) getMapTo(V Circle) trans {
-	s := V.Radius / U.Radius
+	sx := V.Radius.X / U.Radius.X
+	sy := V.Radius.Y / U.Radius.Y
+	s := sqrt(sx * sy)
 	t := V.Center.Sub(U.Center)
 	return trans{s, t}
 }
 
-func (U BezierC) getMapTo(V BezierC) trans {
+func (U Bezier) getMapTo(V Bezier) trans {
 	// only use start and end to compute the transformation
 	return Segment{U.P0, U.P3}.getMapTo(Segment{V.P0, V.P3})
 }
 
-func (U BezierC) distance(V BezierC) fl {
+func (U Bezier) distance(V Bezier) fl {
 	d1 := (U.P0.Sub(V.P0).NormSquared() +
 		U.P1.Sub(V.P1).NormSquared() +
 		U.P2.Sub(V.P2).NormSquared() +
@@ -144,8 +148,8 @@ func mapBetweenAtoms(U, V ShapeAtom) (trans, bool) {
 			return trans{}, false
 		}
 		return U.getMapTo(V), true
-	case BezierC:
-		V, ok := V.(BezierC)
+	case Bezier:
+		V, ok := V.(Bezier)
 		if !ok {
 			return trans{}, false
 		}
@@ -169,8 +173,8 @@ func distanceBetweenAtoms(U, V ShapeAtom) fl {
 			return inf
 		}
 		return U.distance(V)
-	case BezierC:
-		V, ok := V.(BezierC)
+	case Bezier:
+		V, ok := V.(Bezier)
 		if !ok {
 			return inf
 		}
@@ -188,23 +192,20 @@ func distanceBetweenAtoms(U, V ShapeAtom) fl {
 
 // compute the distance between two lists which must have the same length,
 // by comuting the optimal permutation and transformation from one to the other
-func bestShapeDistance(U, V []ShapeAtom) fl {
+func distanceFootprints(U, V []ShapeAtom) (fl, trans) {
 	best := inf
+	var bestTr trans
 	perm(U, func(permuted []ShapeAtom) {
-		d := shapeDistance(permuted, V)
+		d, tr := permShapeDistance(permuted, V)
 		if d < best {
 			best = d
+			bestTr = tr
 		}
 	}, 0)
-	return best
+	return best, bestTr
 }
 
-func shapeDistance(Us, Vs []ShapeAtom) fl {
-	tr, ok := mapBetweenAtoms(Us[0], Vs[0])
-	if !ok {
-		return inf
-	}
-
+func permShapeDistanceScaled(Us, Vs []ShapeAtom, tr trans) fl {
 	var totalDistance fl
 	for j, U := range Us {
 		U = U.scale(tr)
@@ -212,6 +213,22 @@ func shapeDistance(Us, Vs []ShapeAtom) fl {
 	}
 
 	return totalDistance / fl(len(Us)) // normalize
+}
+
+func permShapeDistance(Us, Vs []ShapeAtom) (fl, trans) {
+	best := inf
+	var bestTr trans
+	for i := range Us {
+		tr, ok := mapBetweenAtoms(Us[i], Vs[i])
+		if !ok {
+			continue
+		}
+		if d := permShapeDistanceScaled(Us, Vs, tr); d < best {
+			best = d
+			bestTr = tr
+		}
+	}
+	return best, bestTr
 }
 
 // Permute the values at index i to len(a)-1.

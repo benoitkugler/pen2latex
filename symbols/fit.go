@@ -1,7 +1,6 @@
 package symbols
 
 import (
-	"encoding/json"
 	"fmt"
 	"math"
 )
@@ -16,14 +15,14 @@ from "Graphics Gems", Academic Press, 1990
 
 // panic if len(d) < 3
 // return the average quadratic error
-func fitCubicBezier(points []Pos) (BezierC, fl) {
+func fitCubicBezier(points []Pos) (Bezier, fl) {
 	const maxIterations = 8 // tuned experimentally
 
 	// unit tangent vectors at endpoints
 	tHat1 := computeLeftTangent(points, 0)
 	tHat2 := computeRightTangent(points, len(points)-1)
 
-	bestErr, bestBezier := inf, BezierC{}
+	bestErr, bestBezier := inf, Bezier{}
 
 	// start parametrization with path arc length
 	u := pathLengthIndices(points)
@@ -60,7 +59,7 @@ func pathLengthIndices(points []Pos) []fl {
 }
 
 // u is the current parametrization of the points
-func generateBezier(d []Pos, u []fl, tHat1, tHat2 Pos) BezierC {
+func generateBezier(d []Pos, u []fl, tHat1, tHat2 Pos) Bezier {
 	first, last := 0, len(d)-1
 
 	// Compute A, rhs for eqn
@@ -86,7 +85,7 @@ func generateBezier(d []Pos, u []fl, tHat1, tHat2 Pos) BezierC {
 		C[1][0] = C[0][1]
 		C[1][1] += dotProduct(A[i][1], A[i][1])
 
-		bez := BezierC{d[first], d[first], d[last], d[last]}.eval(u[i])
+		bez := Bezier{d[first], d[first], d[last], d[last]}.eval(u[i])
 
 		tmp := d[first+i].Sub(bez)
 
@@ -116,7 +115,7 @@ func generateBezier(d []Pos, u []fl, tHat1, tHat2 Pos) BezierC {
 	if alpha_l < epsilon || alpha_r < epsilon {
 		/* fall back on standard (probably inaccurate) formula, and subdivide further if needed. */
 		dist := segLength / 3.0
-		return BezierC{
+		return Bezier{
 			P0: d[first],
 			P1: tHat1.ScaleTo(dist).Add(d[first]),
 			P2: tHat2.ScaleTo(dist).Add(d[last]),
@@ -128,7 +127,7 @@ func generateBezier(d []Pos, u []fl, tHat1, tHat2 Pos) BezierC {
 	/*  positioned exactly at the first and last data points */
 	/*  Control points 1 and 2 are positioned an alpha distance out */
 	/*  on the tangent vectors, left and right, respectively */
-	return BezierC{
+	return Bezier{
 		P0: d[first],
 		P1: tHat1.ScaleTo(alpha_l).Add(d[first]),
 		P2: tHat2.ScaleTo(alpha_r).Add(d[last]),
@@ -138,7 +137,7 @@ func generateBezier(d []Pos, u []fl, tHat1, tHat2 Pos) BezierC {
 
 // Given set of points and their parameterization, try to find
 // a better parameterization.
-func reparameterize(d []Pos, u []fl, bezCurve BezierC) []fl {
+func reparameterize(d []Pos, u []fl, bezCurve Bezier) []fl {
 	uPrime := make([]fl, len(d)) //  new parameter values
 	for i := range d {
 		uPrime[i] = newtonRaphsonRootStep(bezCurve, d[i], u[i])
@@ -148,7 +147,7 @@ func reparameterize(d []Pos, u []fl, bezCurve BezierC) []fl {
 
 // newtonRaphsonRootStep :
 // Use Newton-Raphson iteration to find better root.
-func newtonRaphsonRootStep(Q BezierC, P Pos, u fl) fl {
+func newtonRaphsonRootStep(Q Bezier, P Pos, u fl) fl {
 	// Compute Q(u)
 	Q_u := Q.eval(u)
 
@@ -196,10 +195,10 @@ func computeRightTangent(d []Pos, end int) Pos {
 
 // computeDistance finds the average squared distance of digitized points
 // to fitted curve, given a parametrization
-func computeBezierDistance(d []Pos, bezCurve BezierC, u []fl) fl {
+func computeBezierDistance(d []Pos, bezCurve Bezier, u []fl) fl {
 	var average fl // maximum fitError
 	for i := range d {
-		P := bezCurve.eval(u[i]) /*  Pos on curve      */
+		P := bezCurve.eval(u[i]) // pos on curve
 		dist := P.Sub(d[i]).NormSquared()
 		average += dist
 	}
@@ -213,39 +212,47 @@ func dotProduct(a, b Pos) fl { return (a.X * b.X) + (a.Y * b.Y) }
 
 type Circle struct {
 	Center Pos
-	Radius fl
+	Radius Pos // rx, ry
 }
 
-func fitCircle(points []Pos) (Circle, fl) {
-	var tx, ty, txy fl    // x^2, y^2, xy
-	var s0, s1, s2, s3 fl // x^3, x^2y, xy^2, y^3
-
-	// compute barycentre
+// compute the barycentre of the points
+func computeBarycentre(points []Pos) Pos {
 	var barycentre Pos
 	for _, p := range points {
 		barycentre.X += p.X
 		barycentre.Y += p.Y
 	}
 	barycentre.Scale(1 / fl(len(points)))
+	return barycentre
+}
+
+func fitCircle(points []Pos) (Circle, fl) {
+	var tx2, ty2, txy fl      // x^2, y^2, xy
+	var s30, s21, s12, s03 fl // x^3, x^2y, xy^2, y^3
+
+	// compute barycentre
+	barycentre := computeBarycentre(points)
 
 	for _, p := range points {
+		// shift by the barycentre
 		x, y := p.X-barycentre.X, p.Y-barycentre.Y
 		x2, y2 := x*x, y*y
 
-		tx += x2
-		ty += y2
+		tx2 += x2
+		ty2 += y2
 		txy += x * y
 
-		s0 += x * x2
-		s1 += x2 * y
-		s2 += x * y2
-		s3 += y2 * y
+		s30 += x * x2
+		s21 += x2 * y
+		s12 += x * y2
+		s03 += y2 * y
 	}
-	denom := 2 * (tx*ty - txy*txy)
-	cx := ((s2+s0)*ty - (s1+s3)*txy) / denom
-	cy := ((s1+s3)*tx - (s2+s0)*txy) / denom
+	denom := 2 * (tx2*ty2 - txy*txy)
+	cx := ((s12+s30)*ty2 - (s21+s03)*txy) / denom
+	cy := ((s21+s03)*tx2 - (s12+s30)*txy) / denom
 	center := Pos{cx, cy}
-	r := fl(math.Sqrt(float64(cx*cx + cy*cy + (tx+ty)/fl(len(points)))))
+	N := fl(len(points))
+	r := sqrt(cx*cx + cy*cy + (tx2+ty2)/N)
 
 	// translate by the barycentre
 	center = center.Add(barycentre)
@@ -256,7 +263,105 @@ func fitCircle(points []Pos) (Circle, fl) {
 		tmp := p.Sub(center).Norm() - r // maybe be negative
 		averageErr += tmp * tmp
 	}
-	return Circle{center, r}, averageErr / fl(len(points))
+	return Circle{center, Pos{r, r}}, averageErr / N
+}
+
+func fitEllipse(points []Pos) (Circle, fl) {
+	// adapted from the circle case
+	// given the equation
+	// ((x - c_x)/a)² + ((y - c_y)/b)² = 1
+	// we use the variables R = a and S = a/b
+	// yielding the following relation (closer to the circle)
+	// (x - c_x)² + S² (y - c_y) = R²
+
+	var tx2, ty2, txy fl      // x^2, y^2, xy
+	var s30, s21, s12, s03 fl // x^3, x^2y, xy^2, y^3
+	var y4, x2y2 fl           // y^4, x2*y2
+
+	// compute barycentre
+	barycentre := computeBarycentre(points)
+
+	for _, p := range points {
+		// shift by the barycentre
+		x, y := p.X-barycentre.X, p.Y-barycentre.Y
+		x2, y2 := x*x, y*y
+
+		tx2 += x2
+		ty2 += y2
+		txy += x * y
+
+		s30 += x * x2
+		s21 += x2 * y
+		s12 += x * y2
+		s03 += y2 * y
+
+		y4 += y2 * y2
+		x2y2 += x2 * y2
+	}
+
+	N := fl(len(points))
+
+	// solve the system link c_x, c_y, S
+	a, b, d, e := 2*tx2, txy, -s12, s30
+	a_, b_, d_, e_ := 2*txy, ty2, -s03, s21
+	a__, b__, d__, e__ := -2*s12, -2*s03, -(y4 - (ty2 * ty2 / N)), x2y2-(tx2*ty2/N)
+
+	alpha, beta, gamma := a_*b-a*b_, a_*d-a*d_, a_*e-a*e_
+	alpha_, beta_, gamma_ := a__*b-a*b__, a__*d-a*d__, a__*e-a*e__
+
+	S2 := (alpha_*gamma - gamma_*alpha) / (alpha_*beta - alpha*beta_)
+	cy := ((gamma / S2) - beta) / alpha
+	cx := (e - S2*(b*cy+d)) / a
+	R2 := cx*cx + tx2/N + S2*(cy*cy+ty2/N)
+
+	center := Pos{cx, cy}
+
+	ra := sqrt(R2)
+	rb := ra / sqrt(S2)
+
+	// translate by the barycentre
+	center = center.Add(barycentre)
+
+	// error value :
+	// we compute the distance to the ellipse by
+	// transforming it to a C(0, 1) circle
+	// and applying the scaling back
+	var averageErr fl
+	for _, p := range points {
+		// translate to the 0
+		p = p.Sub(center)
+		// apply the linear function (x,y) ->(x/a, y/b)
+		p.X /= ra
+		p.Y /= rb
+		// compute the vector between the projection on the C(0,1)
+		// and p
+		proj := p.ScaleTo(1 / p.Norm())
+		diff := p.Sub(proj)
+		// apply the inverse linear transformation (x,y) -> (ax, by)
+		dist := (ra*diff.X)*(ra*diff.X) + (rb*diff.Y)*(rb*diff.Y)
+		averageErr += dist
+	}
+
+	return Circle{center, Pos{ra, rb}}, averageErr / N
+}
+
+func nanToInf(v fl) fl {
+	if math.IsNaN(float64(v)) {
+		return inf
+	}
+	return v
+}
+
+func fitCircleOrEllipse(points []Pos) (Circle, fl) {
+	// try the general ellipse
+	ellipse, errE := fitEllipse(points)
+	circle, errC := fitCircle(points)
+	errE, errC = nanToInf(errE), nanToInf(errC)
+
+	if errC <= errE {
+		return circle, errC
+	}
+	return ellipse, errE
 }
 
 // line fit
@@ -276,12 +381,20 @@ func fitSegment(points []Pos) (Segment, fl) {
 	}
 	N := fl(len(points))
 	// y = mx + b
-	m := (N*sxy - sx*sy) / (N*sx2 - sx*sx)
-	b := (sy - m*sx) / N
-	// vector director TODO: handle vertical line
-	u := Pos{1, m}
+	denom := (N*sx2 - sx*sx)
+
+	var u, A Pos           // vector director and point in the line
+	if abs(denom) < 1e-6 { // handle vertical line
+		u = Pos{0, 1}
+		A = Pos{points[0].X, 0}
+	} else {
+		m := (N*sxy - sx*sy) / denom
+		b := (sy - m*sx) / N
+		// vector director
+		u = Pos{1, m}
+		A = Pos{0, b}
+	}
 	nu := u.NormSquared()
-	A := Pos{0, b}
 
 	minT, maxT := inf, -inf
 	var (
@@ -314,6 +427,19 @@ const (
 	SAKCircle
 )
 
+func (k ShapeAtomKind) String() string {
+	switch k {
+	case SAKBezier:
+		return "Bezier"
+	case SAKSegment:
+		return "Segment"
+	case SAKCircle:
+		return "Circle"
+	default:
+		panic("invalid kind")
+	}
+}
+
 type shapeAtomData struct {
 	Data []Pos         `json:"d"`
 	Kind ShapeAtomKind `json:"k"`
@@ -325,7 +451,7 @@ func (d shapeAtomData) deserialize() (ShapeAtom, error) {
 		if L := len(d.Data); L != 4 {
 			return nil, fmt.Errorf("invalid length for BezierC %d", L)
 		}
-		return BezierC{d.Data[0], d.Data[1], d.Data[2], d.Data[3]}, nil
+		return Bezier{d.Data[0], d.Data[1], d.Data[2], d.Data[3]}, nil
 	case SAKSegment:
 		if L := len(d.Data); L != 2 {
 			return nil, fmt.Errorf("invalid length for Segment %d", L)
@@ -335,13 +461,13 @@ func (d shapeAtomData) deserialize() (ShapeAtom, error) {
 		if L := len(d.Data); L != 2 {
 			return nil, fmt.Errorf("invalid length for Circle %d", L)
 		}
-		return Circle{Center: d.Data[0], Radius: d.Data[1].X}, nil
+		return Circle{Center: d.Data[0], Radius: d.Data[1]}, nil
 	default:
 		return nil, fmt.Errorf("invalid ShapeAtomKind %d", d.Kind)
 	}
 }
 
-func (b BezierC) serialize() shapeAtomData {
+func (b Bezier) serialize() shapeAtomData {
 	return shapeAtomData{Kind: SAKBezier, Data: []Pos{b.P0, b.P1, b.P2, b.P3}}
 }
 
@@ -350,7 +476,7 @@ func (s Segment) serialize() shapeAtomData {
 }
 
 func (c Circle) serialize() shapeAtomData {
-	return shapeAtomData{Kind: SAKCircle, Data: []Pos{c.Center, {c.Radius, 0}}}
+	return shapeAtomData{Kind: SAKCircle, Data: []Pos{c.Center, c.Radius}}
 }
 
 type ShapeAtom interface {
@@ -361,13 +487,13 @@ type ShapeAtom interface {
 	serialize() shapeAtomData
 }
 
-func (BezierC) Kind() ShapeAtomKind { return SAKBezier }
+func (Bezier) Kind() ShapeAtomKind  { return SAKBezier }
 func (Segment) Kind() ShapeAtomKind { return SAKSegment }
 func (Circle) Kind() ShapeAtomKind  { return SAKCircle }
 
 func (sh Shape) identify() ShapeAtom {
 	if len(sh) == 0 {
-		return BezierC{}
+		return Bezier{}
 	} else if len(sh) <= 2 {
 		start, end := sh[0], sh[len(sh)-1]
 		return Segment{start, end}
@@ -375,7 +501,7 @@ func (sh Shape) identify() ShapeAtom {
 
 	bezier, errBezier := fitCubicBezier(sh)
 	segment, errSegment := fitSegment(sh)
-	circle, errCircle := fitCircle(sh)
+	circle, errCircle := fitCircleOrEllipse(sh)
 
 	// Adjust the raw error with heuristics
 
@@ -401,30 +527,4 @@ func (sh Shape) identify() ShapeAtom {
 	} else {
 		return circle
 	}
-}
-
-type ShapeFootprint []ShapeAtom
-
-func (l ShapeFootprint) MarshalJSON() ([]byte, error) {
-	tmp := make([]shapeAtomData, len(l))
-	for i, a := range l {
-		tmp[i] = a.serialize()
-	}
-	return json.Marshal(tmp)
-}
-
-func (l *ShapeFootprint) UnmarshalJSON(data []byte) error {
-	var tmp []shapeAtomData
-	err := json.Unmarshal(data, &tmp)
-	if err != nil {
-		return err
-	}
-	*l = make(ShapeFootprint, len(tmp))
-	for i, d := range tmp {
-		(*l)[i], err = d.deserialize()
-		if err != nil {
-			return err
-		}
-	}
-	return nil
 }

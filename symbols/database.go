@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 )
 
 // var RequiredRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
@@ -32,7 +33,7 @@ type SymbolStore struct {
 func NewSymbolStore(shapes map[rune]Symbol) *SymbolStore {
 	entries := make([]mapEntry, 0, len(shapes))
 	for r, sy := range shapes {
-		entries = append(entries, mapEntry{sy.Union().normalizeX(), r})
+		entries = append(entries, mapEntry{sy.SegmentToAtoms(), r})
 	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].R < entries[j].R })
 	return &SymbolStore{entries: entries}
@@ -53,48 +54,6 @@ func NewSymbolStoreFromDisk(filename string) (*SymbolStore, error) {
 		return nil, fmt.Errorf("deserializing on-disk store: %s", err)
 	}
 	return &out, nil
-}
-
-// [Lookup] performs approximate matching by finding
-// the closest shape in the database and returning its rune.
-// More precisely, it compares scores for [rec.Shape()] and [rec.Compound()]
-// returning which is better in [preferCompound].
-//
-// [boundingBox] is the parent scope, independent on the symbol,
-// and used to normalize the given symbol to match the database reference geometry.
-//
-// It will panic is the store is empty.
-func (ss SymbolStore) Lookup(rec Record, boundingBox Rect) (r rune, preferCompound bool) {
-	return ss.match(rec)
-	// var (
-	// 	bestIndexCompound, bestIndexShape int
-	// 	bestDistCompound, bestDistShape   float32 = math.MaxFloat32, math.MaxFloat32
-	// )
-	// fmt.Println(boundingBox.IsEmpty())
-	// compoundShape := rec.Compound().Union().normalizeX().normalizeY(boundingBox)
-	// shape := rec.Shape().normalizeX().normalizeY(boundingBox)
-
-	// for i, entry := range ss.entries {
-	// 	if score := frechetDistanceShapes(compoundShape, entry.Shape); score < bestDistCompound {
-	// 		bestIndexCompound = i
-	// 		bestDistCompound = score
-	// 	}
-	// 	if score := frechetDistanceShapes(shape, entry.Shape); score < bestDistShape {
-	// 		bestIndexShape = i
-	// 		bestDistShape = score
-	// 	}
-	// }
-
-	// // If shape is adjacent to compound, always prefer compound
-	// // do not normalize !
-	// if closestPointDistance(rec.Shape(), rec.LastCompound().Union()) < penWidth {
-	// 	return ss.entries[bestIndexCompound].R, true
-	// }
-
-	// if bestDistCompound < bestDistShape {
-	// 	return ss.entries[bestIndexCompound].R, true
-	// }
-	// return ss.entries[bestIndexShape].R, false
 }
 
 // Serialize dumps the store into [filename]
@@ -125,6 +84,40 @@ func (ss *SymbolStore) UnmarshalJSON(data []byte) error {
 }
 
 type mapEntry struct {
-	Shape Shape `json:"s"`
-	R     rune  `json:"r"`
+	Shape ShapeFootprint `json:"s"`
+	R     rune           `json:"r"`
+}
+
+type ShapeFootprint []ShapeAtom
+
+func (sf ShapeFootprint) String() string {
+	chunks := make([]string, len(sf))
+	for i, a := range sf {
+		chunks[i] = fmt.Sprintf("%s (%v)", a.Kind(), a)
+	}
+	return "[ " + strings.Join(chunks, " ; ") + " ]"
+}
+
+func (l ShapeFootprint) MarshalJSON() ([]byte, error) {
+	tmp := make([]shapeAtomData, len(l))
+	for i, a := range l {
+		tmp[i] = a.serialize()
+	}
+	return json.Marshal(tmp)
+}
+
+func (l *ShapeFootprint) UnmarshalJSON(data []byte) error {
+	var tmp []shapeAtomData
+	err := json.Unmarshal(data, &tmp)
+	if err != nil {
+		return err
+	}
+	*l = make(ShapeFootprint, len(tmp))
+	for i, d := range tmp {
+		(*l)[i], err = d.deserialize()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

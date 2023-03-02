@@ -30,6 +30,8 @@ func abs(x fl) fl {
 	return x
 }
 
+func sqrt(x fl) fl { return fl(math.Sqrt(float64(x))) }
+
 // Pos is a 2D point
 type Pos struct {
 	X, Y fl
@@ -41,7 +43,7 @@ func (p *Pos) Scale(s fl)       { p.X *= s; p.Y *= s }
 func (p Pos) ScaleTo(s fl) Pos  { p.Scale(s); return p }
 func (p Pos) Add(other Pos) Pos { p.X += other.X; p.Y += other.Y; return p }
 func (p Pos) Sub(other Pos) Pos { p.X -= other.X; p.Y -= other.Y; return p }
-func (p Pos) Norm() fl          { return float32(math.Sqrt(float64(p.NormSquared()))) }
+func (p Pos) Norm() fl          { return sqrt(p.NormSquared()) }
 func (p Pos) NormSquared() fl   { return p.X*p.X + p.Y*p.Y }
 
 // return the quadratic norm
@@ -135,43 +137,6 @@ func (sh Shape) BoundingBox() Rect {
 	out := EmptyRect()
 	for _, point := range sh {
 		out.enlarge(point)
-	}
-	return out
-}
-
-// normalizeY compute the transformation sending [scope]
-// to the reference EM rect, and applies it to the Y coordinates of the
-// shape
-func (sh Shape) normalizeY(scope Rect) Shape {
-	if scope.IsEmpty() {
-		return sh
-	}
-	// we look for a function f(t) = at + b
-	// where f(scope) = em ref
-	// that is
-	// f(scope.UL.Y) = 0
-	// f(scope.LR.Y) = EMHeight
-	a := (0 - EMHeight) / (scope.UL.Y - scope.LR.Y)
-	b := 0 - a*scope.UL.Y
-	out := make(Shape, len(sh))
-	for i, c := range sh {
-		out[i] = Pos{c.X, a*c.Y + b}
-	}
-	return out
-}
-
-// normalizeX remove x leading space
-// with respect to the bounding box
-func (sh Shape) normalizeX() Shape {
-	if len(sh) == 0 {
-		return nil
-	}
-
-	bbox := sh.BoundingBox()
-	tr := bbox.UL
-	out := make(Shape, len(sh))
-	for i, c := range sh {
-		out[i] = Pos{c.X - tr.X, c.Y}
 	}
 	return out
 }
