@@ -139,6 +139,16 @@ func (U Bezier) distance(V Bezier) fl {
 	return min(d1, d2) / 4
 }
 
+func (U Bezier) distanceCircle(V Circle) fl {
+	// discretize U and average
+	var d fl
+	for i := 0; i <= 10; i++ {
+		t := fl(i) / 10
+		d += V.squaredDistancePoint(U.eval(t))
+	}
+	return d / (10 + 1)
+}
+
 // return a mapping from U to V
 func mapBetweenAtoms(U, V ShapeAtom) (trans, bool) {
 	switch U := U.(type) {
@@ -174,24 +184,30 @@ func distanceBetweenAtoms(U, V ShapeAtom) fl {
 		}
 		return U.distance(V)
 	case Bezier:
-		V, ok := V.(Bezier)
-		if !ok {
+		switch V := V.(type) {
+		case Bezier:
+			return U.distance(V)
+		case Circle:
+			return U.distanceCircle(V)
+		default:
 			return inf
 		}
-		return U.distance(V)
 	case Circle:
-		V, ok := V.(Circle)
-		if !ok {
+		switch V := V.(type) {
+		case Circle:
+			return U.distance(V)
+		case Bezier:
+			return V.distanceCircle(U)
+		default:
 			return inf
 		}
-		return U.distance(V)
 	default:
 		panic("exhaustive type switch")
 	}
 }
 
 // compute the distance between two lists which must have the same length,
-// by comuting the optimal permutation and transformation from one to the other
+// by computing the optimal permutation and transformation from one to the other
 func distanceFootprints(U, V []ShapeAtom) (fl, trans) {
 	best := inf
 	var bestTr trans

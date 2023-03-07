@@ -16,8 +16,8 @@ import (
 // To match an input [Record] against the database,
 // we perform the following steps :
 //   - for each [Shape] in the record, segment it in elementary [ShapeAtom], yielding a [ShapeFootprint]
-//   - for each symbol entrie in the database, compute the distance between its footprint and the input
-//   - TODO: if several results hae the lower distance, use the one with the lower mapping determinant
+//   - for each symbol entry in the database, compute the distance between its footprint and the input
+//   - TODO: if several results have the lower distance, use the one with the lower mapping determinant
 //   - perform these steps for the last [Shape] and for the whole [Symbol], and keep the best
 func (db *SymbolStore) Lookup(rec Record) (r rune, preferCompound bool) {
 	var (
@@ -27,7 +27,7 @@ func (db *SymbolStore) Lookup(rec Record) (r rune, preferCompound bool) {
 	)
 
 	compound := rec.Compound().SegmentToAtoms()
-	last := rec.Shape().SubShapes().Identify()
+	last := Symbol{rec.Shape()}.SegmentToAtoms()
 
 	for i, entry := range db.entries {
 		distCompound, trCompound := inf, trans{}
@@ -114,6 +114,7 @@ func (sh Shape) directions() []fl {
 	return out
 }
 
+// return angle in degree
 func angle(u, v Pos) fl {
 	dot := float64(u.X*v.X + u.Y*v.Y) // u.v
 	det := float64(u.X*v.Y - u.Y*v.X) // u ^ v
@@ -134,7 +135,10 @@ func minMax(values []fl) (min, max fl) {
 	return min, max
 }
 
-func (sh Shape) SubShapes() (out Symbol) {
+func (sh Shape) segment() (out []Shape) {
+	if len(sh) < 2 {
+		return Symbol{sh}
+	}
 	angles := sh.smooth().directions()
 
 	// adjust the scale and build Pos array
@@ -157,23 +161,22 @@ func (sh Shape) SubShapes() (out Symbol) {
 
 // SegmentToAtoms segments the given symbol into
 // simpler elementary blocks
-func (sy Symbol) SegmentToAtoms() (out ShapeFootprint) { return sy.subShapes().Identify() }
-
-// Segment segments the given shape into
-// simpler elementary blocks
-func (sy Symbol) subShapes() (out Symbol) {
-	for _, subShape := range sy {
-		// segment each subshape
-		out = append(out, subShape.SubShapes()...)
+func (sy Symbol) SegmentToAtoms() (out ShapeFootprint) {
+	segments := sy.segment()
+	out = make(ShapeFootprint, len(segments))
+	for i, subShape := range segments {
+		// identify each subshape
+		out[i] = subShape.identify()
 	}
 	return out
 }
 
-func (sy Symbol) Identify() (out []ShapeAtom) {
-	out = make([]ShapeAtom, len(sy))
-	for i, subShape := range sy {
-		// identify each subshape
-		out[i] = subShape.identify()
+// segment segments the given shape into
+// simpler elementary blocks
+func (sy Symbol) segment() (out []Shape) {
+	for _, subShape := range sy {
+		// segment each subshape
+		out = append(out, subShape.segment()...)
 	}
 	return out
 }

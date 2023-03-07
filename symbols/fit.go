@@ -7,6 +7,75 @@ import (
 
 // fitting algorithm for "elementary" shapes
 
+func fitBezier(points []Pos) (Bezier, fl) {
+	bezierGems, errBezierGems := fitCubicBezierGraphicsGems(points)
+	bezierGrad, errBezierGrad := fitCubicBezierGradient(points)
+	if errBezierGems < errBezierGrad {
+		return bezierGems, errBezierGems
+	}
+	return bezierGrad, errBezierGrad
+}
+
+// gradient descent for cubic bezier fit
+
+// return the derivatives of B(t) with respect to
+// control points P1 and P2
+func controlDerivatives(t fl) (dx1, dy1, dx2, dy2 Pos) {
+	s := 1 - t
+	b1 := 3 * s * s * t
+	dx1 = Pos{b1, 0}
+	dy1 = Pos{0, b1}
+	b2 := 3 * s * t * t
+	dx2 = Pos{b2, 0}
+	dy2 = Pos{0, b2}
+	return
+}
+
+func gradientBezierEnergy(points []Pos, pathLengths []fl, bezier Bezier) (out [4]fl) {
+	for i, ti := range pathLengths {
+		bti := bezier.eval(ti)
+		ui := bti.Sub(points[i])
+		dx1, dy1, dx2, dy2 := controlDerivatives(ti)
+		out[0] += dotProduct(ui, dx1)
+		out[1] += dotProduct(ui, dy1)
+		out[2] += dotProduct(ui, dx2)
+		out[3] += dotProduct(ui, dy2)
+	}
+	return out
+}
+
+// panic if len(d) < 2
+// return the average quadratic error
+func fitCubicBezierGradient(points []Pos) (Bezier, fl) {
+	const maxIterations = 50
+
+	pathLengths := pathLengthIndices(points)
+	start, end := points[0], points[len(points)-1]
+	bezier := Bezier{P0: start, P3: end}
+	// start with aligned control points
+	bezier.P1 = start.ScaleTo(2).Add(end).ScaleTo(1. / 3.)
+	bezier.P2 = start.Add(end.ScaleTo(2)).ScaleTo(1. / 3.)
+
+	errValue := inf
+	for i := 0; i < maxIterations; i++ {
+		grad := gradientBezierEnergy(points, pathLengths, bezier)
+		const step = -0.1
+
+		bezier.P1.X += step * grad[0]
+		bezier.P1.Y += step * grad[1]
+		bezier.P2.X += step * grad[2]
+		bezier.P2.Y += step * grad[3]
+
+		newErrValue := computeBezierDistance(points, bezier, pathLengths)
+		if abs(newErrValue-errValue) < 0.1 {
+			break
+		}
+		errValue = newErrValue
+	}
+
+	return bezier, errValue
+}
+
 /*
 An Algorithm for Automatically Fitting Digitized Curves
 by Philip J. Schneider
@@ -15,12 +84,12 @@ from "Graphics Gems", Academic Press, 1990
 
 // panic if len(d) < 3
 // return the average quadratic error
-func fitCubicBezier(points []Pos) (Bezier, fl) {
+func fitCubicBezierGraphicsGems(points []Pos) (Bezier, fl) {
 	const maxIterations = 8 // tuned experimentally
 
 	// unit tangent vectors at endpoints
-	tHat1 := computeLeftTangent(points, 0)
-	tHat2 := computeRightTangent(points, len(points)-1)
+	tHat1 := computeStartTangent(points)
+	tHat2 := computeEndTangent(points)
 
 	bestErr, bestBezier := inf, Bezier{}
 
@@ -179,24 +248,50 @@ func newtonRaphsonRootStep(Q Bezier, P Pos, u fl) fl {
 	return uPrime
 }
 
-// computeLeftTangent, ComputeRightTangent, ComputeCenterTangent :
+// computeStartTangent, ComputeRightTangent, ComputeCenterTangent :
 // Approximate unit tangents at endpoints and "center" of digitized curve
-func computeLeftTangent(d []Pos, end int) Pos {
-	tHat1 := d[end+1].Sub(d[end])
+func computeStartTangent(d []Pos) Pos {
+	tHat1 := d[1].Sub(d[0])
 	tHat1.Scale(tHat1.Norm())
+
+	if len(d) >= 4 {
+		// if the first points are noisy,
+		// average several tangents for a more robust result
+		tHat2 := d[2].Sub(d[0])
+		tHat2.Scale(tHat2.Norm())
+		tHat3 := d[3].Sub(d[0])
+		tHat3.Scale(tHat3.Norm())
+
+		if abs(angle(tHat1, tHat3)) > 30 { // large variation -> average
+			return tHat1.Add(tHat2).Add(tHat3).ScaleTo(1. / 3.)
+		}
+	}
 	return tHat1
 }
 
-func computeRightTangent(d []Pos, end int) Pos {
-	tHat2 := d[end-1].Sub(d[end])
-	tHat2.Scale(tHat2.Norm())
-	return tHat2
+func computeEndTangent(d []Pos) Pos {
+	end := len(d) - 1
+	tHat1 := d[end-1].Sub(d[end])
+	tHat1.Scale(tHat1.Norm())
+
+	// average several tangents for a more robust result
+	if len(d) >= 4 {
+		tHat2 := d[end-2].Sub(d[end])
+		tHat2.Scale(tHat2.Norm())
+		tHat3 := d[end-3].Sub(d[end])
+		tHat3.Scale(tHat3.Norm())
+
+		if abs(angle(tHat1, tHat3)) > 30 { // large variation -> average
+			return tHat1.Add(tHat2).Add(tHat3).ScaleTo(1. / 3.)
+		}
+	}
+	return tHat1
 }
 
-// computeDistance finds the average squared distance of digitized points
-// to fitted curve, given a parametrization
+// computeBezierDistance finds the average squared distance of digitized points
+// to the fitted curve, given a parametrization
 func computeBezierDistance(d []Pos, bezCurve Bezier, u []fl) fl {
-	var average fl // maximum fitError
+	var average fl
 	for i := range d {
 		P := bezCurve.eval(u[i]) // pos on curve
 		dist := P.Sub(d[i]).NormSquared()
@@ -256,14 +351,13 @@ func fitCircle(points []Pos) (Circle, fl) {
 
 	// translate by the barycentre
 	center = center.Add(barycentre)
-
+	out := Circle{center, Pos{r, r}}
 	// error value
 	var averageErr fl
 	for _, p := range points {
-		tmp := p.Sub(center).Norm() - r // maybe be negative
-		averageErr += tmp * tmp
+		averageErr += out.squaredDistancePoint(p)
 	}
-	return Circle{center, Pos{r, r}}, averageErr / N
+	return out, averageErr / N
 }
 
 func fitEllipse(points []Pos) (Circle, fl) {
@@ -321,28 +415,35 @@ func fitEllipse(points []Pos) (Circle, fl) {
 
 	// translate by the barycentre
 	center = center.Add(barycentre)
+	out := Circle{center, Pos{ra, rb}}
 
 	// error value :
-	// we compute the distance to the ellipse by
-	// transforming it to a C(0, 1) circle
-	// and applying the scaling back
 	var averageErr fl
 	for _, p := range points {
-		// translate to the 0
-		p = p.Sub(center)
-		// apply the linear function (x,y) ->(x/a, y/b)
-		p.X /= ra
-		p.Y /= rb
-		// compute the vector between the projection on the C(0,1)
-		// and p
-		proj := p.ScaleTo(1 / p.Norm())
-		diff := p.Sub(proj)
-		// apply the inverse linear transformation (x,y) -> (ax, by)
-		dist := (ra*diff.X)*(ra*diff.X) + (rb*diff.Y)*(rb*diff.Y)
-		averageErr += dist
+		averageErr += out.squaredDistancePoint(p)
 	}
 
-	return Circle{center, Pos{ra, rb}}, averageErr / N
+	return out, averageErr / N
+}
+
+// we compute the distance to the ellipse by
+// transforming it to a C(0, 1) circle
+// and applying the scaling back
+func (c Circle) squaredDistancePoint(p Pos) fl {
+	// translate to the 0
+	p = p.Sub(c.Center)
+	ra, rb := c.Radius.X, c.Radius.Y
+	// apply the linear function (x,y) ->(x/a, y/b)
+	p.X /= ra
+	p.Y /= rb
+	// compute the vector between the projection on the C(0,1)
+	// and p
+	proj := p.ScaleTo(1 / p.Norm())
+	diff := p.Sub(proj)
+	// apply the inverse linear transformation (x,y) -> (ax, by)
+	x, y := ra*diff.X, rb*diff.Y
+	dist := x*x + y*y
+	return dist
 }
 
 func nanToInf(v fl) fl {
@@ -362,6 +463,30 @@ func fitCircleOrEllipse(points []Pos) (Circle, fl) {
 		return circle, errC
 	}
 	return ellipse, errE
+}
+
+// compute (approximatly) the squared distance between the farthest point
+// of the ellipse to the points
+// this is intended to penalize "half circles" fit
+func ellipsePenalty(points []Pos, e Circle) fl {
+	// we want max_(c in e) min_(p in points) distance(c, p)
+	// we discretize for simplicity
+	a, b := float64(e.Radius.X), float64(e.Radius.Y)
+	var max fl
+	for theta := 0.; theta < 360; theta += 10 {
+		thetaR := theta * math.Pi / 180 // in radians
+		c := e.Center.Add(Pos{fl(a * math.Cos(thetaR)), fl(b * math.Sin(thetaR))})
+		best := inf
+		for _, p := range points {
+			if d := c.Sub(p).NormSquared(); d < best {
+				best = d
+			}
+		}
+		if best > max {
+			max = best
+		}
+	}
+	return max
 }
 
 // line fit
@@ -499,7 +624,7 @@ func (sh Shape) identify() ShapeAtom {
 		return Segment{start, end}
 	}
 
-	bezier, errBezier := fitCubicBezier(sh)
+	bezier, errBezier := fitBezier(sh)
 	segment, errSegment := fitSegment(sh)
 	circle, errCircle := fitCircleOrEllipse(sh)
 
@@ -510,6 +635,9 @@ func (sh Shape) identify() ShapeAtom {
 	if bbox := sh.BoundingBox(); !bbox.contains(circle.Center) {
 		errCircle = inf
 	}
+
+	// slightly penalize half circle
+	errCircle += 0.02 * ellipsePenalty(sh, circle)
 
 	// give priority to segment for "almost" linear shapes
 	if errSegment < 1 { // err is average for

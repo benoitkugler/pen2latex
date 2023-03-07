@@ -1,6 +1,8 @@
 package views
 
 import (
+	"fmt"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
@@ -49,6 +51,11 @@ func newSymbolTable(onDone func(map[rune]symbols.Symbol)) *symbolTable {
 func (st *symbolTable) drawShape() {
 	rec := st.wb.Recorder.Current()
 	st.wb.Content = []symbols.Symbol{rec.Compound()}
+
+	atoms := rec.Compound().SegmentToAtoms()
+	fmt.Println(len(atoms), atoms)
+	imag := renderAtoms(atoms, rec.Compound().Union().BoundingBox())
+	savePng(imag)
 }
 
 func (st *symbolTable) saveRune() {

@@ -17,8 +17,8 @@ const (
 )
 
 const (
-	EMWidth         float32 = 20.
-	EMHeight        float32 = 50.
+	EMWidth         float32 = 30.
+	EMHeight        float32 = 60.
 	EMBaselineRatio float32 = 0.66 // from the top
 )
 
@@ -26,7 +26,8 @@ const (
 // runes, as setup by the user,
 // and is later used to map a mouse entry to a rune.
 type SymbolStore struct {
-	entries []mapEntry // acts as a map, but with faster iteration
+	// acts as a map[rune][]Symbol, but with faster iteration,
+	entries []mapEntry
 }
 
 // NewSymbolStore return a database for the given [shapes].
@@ -52,6 +53,12 @@ func NewSymbolStoreFromDisk(filename string) (*SymbolStore, error) {
 	err = json.NewDecoder(f).Decode(&out)
 	if err != nil {
 		return nil, fmt.Errorf("deserializing on-disk store: %s", err)
+	}
+
+	for _, ee := range out.entries {
+		if ee.R == '2' || ee.R == '3' {
+			fmt.Println(string(ee.R), ee.Shape)
+		}
 	}
 	return &out, nil
 }
@@ -93,7 +100,7 @@ type ShapeFootprint []ShapeAtom
 func (sf ShapeFootprint) String() string {
 	chunks := make([]string, len(sf))
 	for i, a := range sf {
-		chunks[i] = fmt.Sprintf("%s (%v)", a.Kind(), a)
+		chunks[i] = fmt.Sprintf("%s%v", a.Kind(), a)
 	}
 	return "[ " + strings.Join(chunks, " ; ") + " ]"
 }

@@ -198,7 +198,7 @@ func segmentation(angles []Pos) []clusterRange {
 }
 
 func segmentByAngleBreak(angles []Pos, outliers map[int]bool) []clusterRange {
-	const angleBreak = 80
+	const angleBreak = 75
 
 	var currentRangeStart int
 	var out []clusterRange

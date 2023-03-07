@@ -19,6 +19,7 @@ import (
 func showEditor(db *symbols.SymbolStore) *fyne.Container {
 	// ed := newEditor(db)
 
+	matched := widget.NewLabel("Caractère reconnu")
 	// data := canvas.NewImageFromImage(image.NewGray(image.Rect(0, -180, 100, 180)))
 	// data.FillMode = canvas.ImageFillOriginal
 
@@ -26,24 +27,34 @@ func showEditor(db *symbols.SymbolStore) *fyne.Container {
 	// shapeImg.FillMode = canvas.ImageFillOriginal
 	// shapeImg := canvas.NewRasterFromImage(image.NewAlpha(image.Rect(0, 0, 0, 0)))
 	rec := whiteboard.NewRecorder()
+
+	reset := widget.NewButton("Reset", func() {
+		rec.Recorder.Reset()
+		matched.SetText("Caractère reconnu")
+	})
+
 	rec.OnEndShape = func() {
 		// img := rec.Recorder.Current().Shape().AngularGraph()
 		// data.Image = img
 		// data.Refresh()
 
 		// si := rec.Recorder.Current().Shape().AngleClustersGraph()
+		record := rec.Recorder.Current()
 
-		shape := rec.Recorder.Current().Shape()
+		shape := record.Shape()
 		fmt.Println("Shape", shape)
-		segments := shape.SubShapes().Identify()
+		segments := symbols.Symbol{shape}.SegmentToAtoms()
 		fmt.Println("K", len(segments), segments)
 		imag := renderAtoms(segments, shape.BoundingBox())
 		savePng(imag)
 		// *shapeImg = *canvas.NewRasterFromImage(imag)
 		// shapeImg.Resize(fyne.Size{Width: float32(imag.Bounds().Dx()), Height: float32(imag.Bounds().Dy())})
 		// shapeImg.Refresh()
+
+		r, compound := db.Lookup(record)
+		matched.SetText(fmt.Sprintf("Caractère: %s (composé : %v)", string(r), compound))
 	}
-	return container.NewVBox(rec)
+	return container.NewVBox(rec, reset, matched)
 }
 
 type editor struct {
