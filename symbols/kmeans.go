@@ -174,13 +174,20 @@ type clusterRange [2]int // start, end (excluded, in slice syntax)
 // segmentation filters outliers and segments the resulting
 // points
 // outlier are not present in the returned ranges
-func segmentation(angles []Pos) []clusterRange {
+func segmentation(angles []fl) []clusterRange {
 	const KMax = 5
+
+	// adjust the scale and build Pos array
+	min, _ := minMax(angles)
+	toSegment := make([]Pos, len(angles))
+	for i, a := range angles {
+		toSegment[i] = Pos{X: float32(i), Y: a - min}
+	}
 
 	// run kmeans for each K and pick the best WCSS to detect outliers
 	bestWCSSK, bestWCSS := kmOut{}, inf
 	for K := 1; K <= KMax; K++ {
-		kmeansOut := kmeans(angles, K)
+		kmeansOut := kmeans(toSegment, K)
 
 		if kmeansOut.cls.isDegenerated() {
 			continue
@@ -194,10 +201,22 @@ func segmentation(angles []Pos) []clusterRange {
 
 	outliers := bestWCSSK.detectOutliers()
 	clusters := segmentByAngleBreak(angles, outliers)
+
+	if len(clusters) == 1 {
+		indexSplit, shouldSplit := splitSpirale(angles, outliers)
+		if shouldSplit {
+			cl := clusters[0]
+			return []clusterRange{
+				{cl[0], indexSplit + 1},
+				{indexSplit + 1, cl[1]},
+			}
+		}
+	}
+
 	return clusters
 }
 
-func segmentByAngleBreak(angles []Pos, outliers map[int]bool) []clusterRange {
+func segmentByAngleBreak(angles []fl, outliers map[int]bool) []clusterRange {
 	const angleBreak = 75
 
 	var currentRangeStart int
@@ -221,14 +240,14 @@ func segmentByAngleBreak(angles []Pos, outliers map[int]bool) []clusterRange {
 			continue
 		}
 		if i == 0 {
-			previous = current.Y
+			previous = current
 			continue
 		}
-		if abs(current.Y-previous) >= angleBreak { // new cluster, push the previous
+		if abs(current-previous) >= angleBreak { // new cluster, push the previous
 			push(clusterRange{currentRangeStart, previousIndex + 1})
 			currentRangeStart = i
 		}
-		previous = current.Y
+		previous = current
 		previousIndex = i
 	}
 	if currentRangeStart < len(angles)-1 {
@@ -236,4 +255,38 @@ func segmentByAngleBreak(angles []Pos, outliers map[int]bool) []clusterRange {
 	}
 
 	return out
+}
+
+// expect one cluster, and returns the index where half a turn has been made
+// returns false if the shape should not be split
+// outliers are ignored
+func splitSpirale(angles []fl, outliers map[int]bool) (int, bool) {
+	var (
+		min, max      = inf, -inf
+		first         = inf
+		indexHalfTurn = -1
+	)
+
+	for i, current := range angles {
+		if outliers[i] {
+			continue
+		}
+		if first == inf {
+			first = current
+		}
+
+		if current < min {
+			min = current
+		}
+		if current > max {
+			max = current
+		}
+
+		if indexHalfTurn == -1 && abs(current-first) > 200 {
+			indexHalfTurn = i
+		}
+	}
+
+	// only split when the shape rotates way more than a circle
+	return indexHalfTurn, (max - min) > 380
 }

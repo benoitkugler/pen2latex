@@ -465,6 +465,30 @@ func fitCircleOrEllipse(points []Pos) (Circle, fl) {
 	return ellipse, errE
 }
 
+// compute the largest angular gap between two projected points on /
+// e
+// it will low for real circle (ellipses) and high for half circles
+func isEllipseComplete(points []Pos, e Circle) bool {
+	var maxDiff fl
+	for i := range points {
+		var p1, p2 Pos
+		if i == len(points)-1 {
+			p1, p2 = points[i], points[0]
+		} else {
+			p1, p2 = points[i], points[i+1]
+		}
+
+		di1 := p1.Sub(e.Center)
+		di2 := p2.Sub(e.Center)
+		a := abs(angle(di1, di2))
+		if a > maxDiff {
+			maxDiff = a
+		}
+	}
+
+	return maxDiff < 40
+}
+
 // compute (approximatly) the squared distance between the farthest point
 // of the ellipse to the points
 // this is intended to penalize "half circles" fit
@@ -646,6 +670,11 @@ func (sh Shape) identify() ShapeAtom {
 		if (errSegment-errBezier)/errSegment < 0.05 { // 5%
 			return segment
 		}
+	}
+
+	// prefer circle over bezier
+	if isEllipseComplete(sh, circle) {
+		return circle
 	}
 
 	if errSegment <= errCircle && errSegment <= errBezier {

@@ -117,9 +117,9 @@ var i int
 
 func shapeToPixelImg(sh Shape) {
 	rect := sh.BoundingBox()
-	img := image.NewGray(image.Rect(int(rect.LR.X)+2, int(rect.LR.Y)+2, int(rect.UL.X)-2, int(rect.UL.Y)-2))
+	img := image.NewGray(image.Rect(int(rect.LR.X*4)+2, int(rect.LR.Y*4)+2, int(rect.UL.X*4)-2, int(rect.UL.Y*4)-2))
 	for _, p := range sh {
-		img.SetGray(int(p.X), int(p.Y), color.Gray{255})
+		img.SetGray(int(p.X*4), int(p.Y*4), color.Gray{255})
 	}
 	i++
 	f, err := os.Create(fmt.Sprintf("tmp%d.png", i))

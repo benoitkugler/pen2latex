@@ -75,8 +75,8 @@ func (sh Shape) smooth() Shape {
 			continue
 		}
 		before, after := sh[i-1], sh[i+1]
-		out[i].X = (before.X + p.X + after.X) / 3
-		out[i].Y = (before.Y + p.Y + after.Y) / 3
+		out[i].X = (before.X + p.X + after.X) / 3.
+		out[i].Y = (before.Y + p.Y + after.Y) / 3.
 	}
 	return out
 }
@@ -141,15 +141,8 @@ func (sh Shape) segment() (out []Shape) {
 	}
 	angles := sh.smooth().directions()
 
-	// adjust the scale and build Pos array
-	min, _ := minMax(angles)
-	toSegment := make([]Pos, len(angles))
-	for i, a := range angles {
-		toSegment[i] = Pos{X: float32(i), Y: a - min}
-	}
-
 	// compute the sub shapes
-	clusters := segmentation(toSegment)
+	clusters := segmentation(angles)
 
 	// identify each subshape
 	for _, cl := range clusters {
