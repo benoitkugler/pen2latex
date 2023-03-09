@@ -640,12 +640,12 @@ func (Bezier) Kind() ShapeAtomKind  { return SAKBezier }
 func (Segment) Kind() ShapeAtomKind { return SAKSegment }
 func (Circle) Kind() ShapeAtomKind  { return SAKCircle }
 
-func (sh Shape) identify() ShapeAtom {
+func (sh Shape) identify() []ShapeAtom {
 	if len(sh) == 0 {
-		return Bezier{}
+		return nil
 	} else if len(sh) <= 2 {
 		start, end := sh[0], sh[len(sh)-1]
-		return Segment{start, end}
+		return []ShapeAtom{Segment{start, end}}
 	}
 
 	bezier, errBezier := fitBezier(sh)
@@ -665,23 +665,48 @@ func (sh Shape) identify() ShapeAtom {
 
 	// give priority to segment for "almost" linear shapes
 	if errSegment < 1 { // err is average for
-		return segment
+		return []ShapeAtom{segment}
 	} else if errSegment > errBezier {
 		if (errSegment-errBezier)/errSegment < 0.05 { // 5%
-			return segment
+			return []ShapeAtom{segment}
 		}
 	}
 
 	// prefer circle over bezier
 	if isEllipseComplete(sh, circle) {
-		return circle
+		return []ShapeAtom{circle}
 	}
 
 	if errSegment <= errCircle && errSegment <= errBezier {
-		return segment
+		return []ShapeAtom{segment}
 	} else if errBezier <= errSegment && errBezier <= errCircle {
-		return bezier
+		// make sure two lines are not better
+		ok, l1, l2 := isBezierTwoLines(bezier, sh, errBezier)
+		if ok {
+			return []ShapeAtom{l1, l2}
+		}
+		return []ShapeAtom{bezier}
 	} else {
-		return circle
+		return []ShapeAtom{circle}
 	}
+}
+
+// check if the shape is rather two straight lines
+func isBezierTwoLines(be Bezier, sh Shape, errBezier fl) (isTwoLines bool, line1, line2 Segment) {
+	indexExtremum := be.extremalPoint(sh)
+
+	// try to split at bestIndex and to fit two segments
+	sh1, sh2 := sh[0:indexExtremum+1], sh[indexExtremum+1:]
+	if len(sh1) <= 4 || len(sh2) <= 4 {
+		return
+	}
+
+	s1, e1 := fitSegment(sh1)
+	s2, e2 := fitSegment(sh2)
+
+	if (e1+e2)/2 < errBezier*0.5 {
+		return true, s1, s2
+	}
+
+	return
 }

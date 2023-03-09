@@ -139,6 +139,7 @@ func (sh Shape) segment() (out []Shape) {
 	if len(sh) < 2 {
 		return Symbol{sh}
 	}
+
 	angles := sh.smooth().directions()
 
 	// compute the sub shapes
@@ -156,10 +157,10 @@ func (sh Shape) segment() (out []Shape) {
 // simpler elementary blocks
 func (sy Symbol) SegmentToAtoms() (out ShapeFootprint) {
 	segments := sy.segment()
-	out = make(ShapeFootprint, len(segments))
-	for i, subShape := range segments {
+	out = make(ShapeFootprint, 0, len(segments))
+	for _, subShape := range segments {
 		// identify each subshape
-		out[i] = subShape.identify()
+		out = append(out, subShape.identify()...)
 	}
 	return out
 }

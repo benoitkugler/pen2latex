@@ -1,5 +1,9 @@
 package symbols
 
+import (
+	"math"
+)
+
 type bezierL struct {
 	P0, P1 Pos
 }
@@ -123,4 +127,71 @@ func getFirstControlPoints(rhs []fl) []float32 {
 	}
 
 	return x
+}
+
+// translate and rotate so that P0 = 0, P3.Y = 0, P3.X > 0
+func (b *Bezier) normalize() (center Pos, c, s fl) {
+	// shift to (0,0)
+	center = b.P0
+	b.P0 = b.P0.Sub(center)
+	b.P1 = b.P1.Sub(center)
+	b.P2 = b.P2.Sub(center)
+	b.P3 = b.P3.Sub(center)
+
+	// rotate
+	theta := math.Atan2(float64(b.P3.Y), float64(b.P3.X))
+	c, s = fl(math.Cos(-theta)), fl(math.Sin(-theta))
+	b.P1.rotate(c, s)
+	b.P2.rotate(c, s)
+	b.P3.rotate(c, s)
+
+	return
+}
+
+// assume b is normalized
+func (be Bezier) extremumY() Pos {
+	a := be.P1.Y
+	b := be.P2.Y - be.P1.Y
+	c := be.P2.Y
+	A := a - 2*b - c
+
+	if A == 0 {
+		t := -a / (2 * (b - a))
+		return be.eval(t)
+	}
+
+	delta := (b-a)*(b-a) - a*A
+
+	if delta < 0 {
+		return Pos{}
+	}
+
+	sd := sqrt(delta)
+	t1 := ((a - b) + sd) / A
+	t2 := ((a - b) - sd) / A
+	if 0 <= t1 && t1 <= 1 {
+		return be.eval(t1)
+	} else if 0 <= t2 && t2 <= 1 {
+		return be.eval(t2)
+	}
+	return Pos{}
+}
+
+// assume [be] is fitted from origin
+func (be Bezier) extremalPoint(origin Shape) int {
+	center, c, s := be.normalize()
+	max := be.extremumY()
+	var (
+		bestIndex int
+		bestDist  = inf
+	)
+	for i, p := range origin {
+		p = p.Sub(center)
+		p.rotate(c, s)
+		if d := p.Sub(max).NormSquared(); d < bestDist {
+			bestIndex = i
+			bestDist = d
+		}
+	}
+	return bestIndex
 }

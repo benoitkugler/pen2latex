@@ -39,6 +39,13 @@ type Pos struct {
 
 func (p Pos) String() string { return fmt.Sprintf("{X: %.01f, Y:%.01f}", p.X, p.Y) }
 
+// (x, y) => (x*c - s*y, x*s + y*c)
+func (p *Pos) rotate(cosTheta, sinTheta fl) {
+	x, y := p.X, p.Y
+	p.X = x*cosTheta - y*sinTheta
+	p.Y = x*sinTheta + y*cosTheta
+}
+
 func (p *Pos) Scale(s fl)       { p.X *= s; p.Y *= s }
 func (p Pos) ScaleTo(s fl) Pos  { p.Scale(s); return p }
 func (p Pos) Add(other Pos) Pos { p.X += other.X; p.Y += other.Y; return p }
