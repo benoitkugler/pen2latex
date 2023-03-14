@@ -33,11 +33,11 @@ func (db *SymbolStore) Lookup(rec Record) (r rune, preferCompound bool) {
 		distCompound, trCompound := inf, trans{}
 		distLast, trLast := inf, trans{}
 		// only try symbols with same number of atoms
-		if len(compound) == len(entry.Shape) {
-			distCompound, trCompound = distanceFootprints(compound, entry.Shape)
+		if len(compound) == len(entry.Footprint) {
+			distCompound, trCompound = distanceFootprints(compound, entry.Footprint)
 		}
-		if len(last) == len(entry.Shape) {
-			distLast, trLast = distanceFootprints(last, entry.Shape)
+		if len(last) == len(entry.Footprint) {
+			distLast, trLast = distanceFootprints(last, entry.Footprint)
 		}
 
 		if distCompound < bestDistCompound {
@@ -135,24 +135,6 @@ func minMax(values []fl) (min, max fl) {
 	return min, max
 }
 
-func (sh Shape) segment() (out []Shape) {
-	if len(sh) < 2 {
-		return Symbol{sh}
-	}
-
-	angles := sh.smooth().directions()
-
-	// compute the sub shapes
-	clusters := segmentation(angles)
-
-	// identify each subshape
-	for _, cl := range clusters {
-		subShape := sh[cl[0]:cl[1]]
-		out = append(out, subShape)
-	}
-	return out
-}
-
 // SegmentToAtoms segments the given symbol into
 // simpler elementary blocks
 func (sy Symbol) SegmentToAtoms() (out ShapeFootprint) {
@@ -171,6 +153,26 @@ func (sy Symbol) segment() (out []Shape) {
 	for _, subShape := range sy {
 		// segment each subshape
 		out = append(out, subShape.segment()...)
+	}
+	return out
+}
+
+// derivatives compute the similar footprints, yielding the same
+// rune
+func (sf ShapeFootprint) derivatives() (out []ShapeFootprint) {
+	for i := range sf {
+		if i == len(sf)-1 {
+			continue
+		}
+		b1, ok1 := sf[i].(Bezier)
+		b2, ok2 := sf[i+1].(Bezier)
+		if ok1 && ok2 {
+			if circle, ok := areTwoBeziersCircle(b1, b2); ok {
+				deri := append(sf[:i], circle)
+				deri = append(deri, sf[i+2:]...)
+				out = append(out, deri)
+			}
+		}
 	}
 	return out
 }

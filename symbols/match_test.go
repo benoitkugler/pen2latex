@@ -84,6 +84,10 @@ func TestLookup(t *testing.T) {
 		'x': symbols_x[0],
 	})
 
+	// printShape(t, symbols_a[1].Union(), "tmp_a1.png")
+	// printShape(t, symbols_b[1].Union(), "tmp_b1.png")
+	// printShape(t, symbols_b[2].Union(), "tmp_b2.png")
+
 	for i, sym := range symbols_a {
 		r, _ := db.Lookup(Record{sym})
 		if r != 'a' {
@@ -132,10 +136,12 @@ func shapeToPixelImg(sh Shape) {
 	}
 }
 
-func TestMatchAC(t *testing.T) {
+func TestMatch_a_c(t *testing.T) {
 	a2 := Shape{
 		{X: 39.0, Y: 21.3}, {X: 38.0, Y: 21.3}, {X: 37.0, Y: 21.3}, {X: 36.0, Y: 22.3}, {X: 35.0, Y: 22.3}, {X: 34.0, Y: 23.3}, {X: 33.0, Y: 25.3}, {X: 32.0, Y: 26.3}, {X: 31.0, Y: 28.3}, {X: 30.0, Y: 30.3}, {X: 30.0, Y: 32.3}, {X: 29.0, Y: 33.3}, {X: 29.0, Y: 35.3}, {X: 29.0, Y: 36.3}, {X: 29.0, Y: 38.3}, {X: 30.0, Y: 39.3}, {X: 31.0, Y: 40.3}, {X: 32.0, Y: 40.3}, {X: 33.0, Y: 40.3}, {X: 34.0, Y: 39.3}, {X: 35.0, Y: 38.3}, {X: 37.0, Y: 37.3}, {X: 38.0, Y: 36.3}, {X: 39.0, Y: 34.3}, {X: 40.0, Y: 32.3}, {X: 41.0, Y: 31.3}, {X: 41.0, Y: 29.3}, {X: 41.0, Y: 28.3}, {X: 41.0, Y: 27.3}, {X: 41.0, Y: 26.3}, {X: 41.0, Y: 25.3}, {X: 41.0, Y: 24.3}, {X: 41.0, Y: 23.3}, {X: 40.0, Y: 23.3}, {X: 40.0, Y: 24.3}, {X: 40.0, Y: 25.3}, {X: 40.0, Y: 26.3}, {X: 40.0, Y: 28.3}, {X: 41.0, Y: 29.3}, {X: 41.0, Y: 31.3}, {X: 42.0, Y: 33.3}, {X: 42.0, Y: 34.3}, {X: 42.0, Y: 35.3}, {X: 43.0, Y: 36.3}, {X: 43.0, Y: 37.3}, {X: 44.0, Y: 38.3}, {X: 44.0, Y: 39.3}, {X: 45.0, Y: 40.3}, {X: 46.0, Y: 40.3},
 	}
+	fp := Symbol{a2}.SegmentToAtoms()
+	tu.AssertEqual(t, len(fp), 2)
 
 	aFootprint := ShapeFootprint{
 		Circle{Pos{X: 12.7, Y: 27.4}, Pos{X: 6.7, Y: 6.7}},
@@ -145,9 +151,7 @@ func TestMatchAC(t *testing.T) {
 		Circle{Pos{X: 18.4, Y: 29.6}, Pos{X: 6.5, Y: 6.5}},
 		Segment{Pos{X: 11.2, Y: 36.3}, Pos{X: 14.8, Y: 32.8}},
 	}
-	atoms := Symbol{a2}.SegmentToAtoms()
-	tu.Assert(t, len(atoms) == 2)
-	da, _ := distanceFootprints(aFootprint, atoms)
-	dc, _ := distanceFootprints(cFootprint, atoms)
+	da, _ := distanceFootprints(aFootprint, fp)
+	dc, _ := distanceFootprints(cFootprint, fp)
 	tu.Assert(t, da < dc)
 }

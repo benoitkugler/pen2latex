@@ -1,6 +1,9 @@
 package testutils
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 func Assert(t *testing.T, cond bool) {
 	t.Helper()
@@ -15,5 +18,12 @@ func AssertNoErr(t *testing.T, err error) {
 
 	if err != nil {
 		t.Fatalf("unexpected error %v", err)
+	}
+}
+
+func AssertEqual(t *testing.T, got, exp any) {
+	t.Helper()
+	if !reflect.DeepEqual(exp, got) {
+		t.Fatalf("expected %v, got %v", exp, got)
 	}
 }

@@ -2,148 +2,8 @@ package symbols
 
 import (
 	"math"
+	"sort"
 )
-
-type kmOut struct {
-	points  []Pos // the input of the algorithm
-	cls     clusters
-	centers []Pos
-}
-
-func kmeans(points []Pos, K int) kmOut {
-	if K > 255 {
-		panic("K > 255")
-	}
-
-	// start with uniform repartition of centers
-	L := len(points)
-	step := L / K
-	centers := make([]Pos, K)
-	for i := 0; i < K; i++ {
-		centers[i] = points[step/2+i*step]
-	}
-	cls := clusters{
-		pointClusters: make([]uint8, L), // will be erased by the first assignClusters call
-		clusterSize:   make([]int, K),   // idem
-	}
-
-	for hasChanged := true; hasChanged; {
-		hasChanged = assignClusters(points, centers, cls)
-		computeCenters(points, cls, centers)
-	}
-
-	return kmOut{points, cls, centers}
-}
-
-type clusters struct {
-	pointClusters []uint8 // index of the cluster for point i
-	clusterSize   []int   // with len K
-}
-
-// update [out], selecting for each point the closest center
-//
-// len(points) == len(out)
-func assignClusters(points []Pos, centers []Pos, out clusters) (hasChanged bool) {
-	// reset cluster sizes
-	for i := range out.clusterSize {
-		out.clusterSize[i] = 0
-	}
-
-	for i, p := range points {
-		bestD := inf
-		bestCluster := -1
-		for j, center := range centers {
-			if dist := distP(p, center); dist < bestD {
-				bestD = dist
-				bestCluster = j
-			}
-		}
-		cl := uint8(bestCluster)
-
-		if out.pointClusters[i] != cl {
-			hasChanged = true
-		}
-
-		out.pointClusters[i] = cl
-		out.clusterSize[cl]++
-	}
-
-	return hasChanged
-}
-
-// update [out] by averaring the points in cluster
-// empty clusters are ignored
-//
-// len(clusters) == len(out)
-func computeCenters(points []Pos, clusters clusters, out []Pos) {
-	// reset out
-	for i := range out {
-		out[i] = Pos{}
-	}
-
-	for i, p := range points {
-		cl := clusters.pointClusters[i]
-		out[cl].X += p.X
-		out[cl].Y += p.Y
-	}
-	// divide by the number of cluster
-	for i := range out {
-		if s := fl(clusters.clusterSize[i]); s != 0 {
-			out[i].X /= s
-			out[i].Y /= s
-		}
-	}
-}
-
-// Within-Cluster-Sum-of-Squares (WCSS)
-func (km kmOut) wcss() fl {
-	var s fl
-	for i, p := range km.points {
-		cl := km.cls.pointClusters[i]
-		s += distP(p, km.centers[cl])
-	}
-	s /= fl(len(km.points)) // to ease comparison
-	return s
-}
-
-// return true if at least one class has less than 3 points
-func (cls clusters) isDegenerated() bool {
-	for _, size := range cls.clusterSize {
-		if size <= 3 {
-			return true
-		}
-	}
-	return false
-}
-
-func detectOutlierInCluster(points []Pos, cls clusters, center Pos, cl uint8) []int {
-	// average distance to center in cluster
-	Nk := cls.clusterSize[cl]
-	if Nk == 0 {
-		return nil
-	}
-
-	inCluster := make([]int, 0, Nk)
-	distances := make([]fl, 0, Nk)
-
-	for i, p := range points {
-		if cls.pointClusters[i] == cl {
-			inCluster = append(inCluster, i)
-			distances = append(distances, distP(p, center))
-		}
-	}
-	mean, std := meanAndStd(distances)
-	thresholdMax := mean + 1*std
-
-	var out []int
-	for j, pointIndex := range inCluster {
-		d := distances[j]
-		if d > thresholdMax { // found outlier
-			out = append(out, pointIndex)
-		}
-	}
-	return out
-}
 
 func meanAndStd(values []fl) (mean, std fl) {
 	var esp2 fl
@@ -157,64 +17,18 @@ func meanAndStd(values []fl) (mean, std fl) {
 	return mean, std
 }
 
-func (clustered kmOut) detectOutliers() map[int]bool {
-	out := map[int]bool{}
-	for k := range clustered.cls.clusterSize {
-		for _, outlier := range detectOutlierInCluster(clustered.points, clustered.cls, clustered.centers[k], uint8(k)) {
-			out[outlier] = true
-		}
-	}
-	return out
-}
-
-// complete algorithm
-
-type clusterRange [2]int // start, end (excluded, in slice syntax)
-
-// segmentation filters outliers and segments the resulting
-// points
-// outlier are not present in the returned ranges
-func segmentation(angles []fl) []clusterRange {
-	const KMax = 5
-
-	// adjust the scale and build Pos array
+// adjust the scale and build Pos array
+func anglesToPos(angles []fl) []Pos {
+	N := fl(len(angles))
 	min, _ := minMax(angles)
 	toSegment := make([]Pos, len(angles))
 	for i, a := range angles {
-		toSegment[i] = Pos{X: float32(i), Y: a - min}
+		toSegment[i] = Pos{X: float32(i), Y: N * (a - min) / 360}
 	}
-
-	// run kmeans for each K and pick the best WCSS to detect outliers
-	bestWCSSK, bestWCSS := kmOut{}, inf
-	for K := 1; K <= KMax; K++ {
-		kmeansOut := kmeans(toSegment, K)
-
-		if kmeansOut.cls.isDegenerated() {
-			continue
-		}
-
-		if w := kmeansOut.wcss(); w < bestWCSS {
-			bestWCSS = w
-			bestWCSSK = kmeansOut
-		}
-	}
-
-	outliers := bestWCSSK.detectOutliers()
-	clusters := segmentByAngleBreak(angles, outliers)
-
-	if len(clusters) == 1 {
-		indexSplit, shouldSplit := splitSpirale(angles, outliers)
-		if shouldSplit {
-			cl := clusters[0]
-			return []clusterRange{
-				{cl[0], indexSplit + 1},
-				{indexSplit + 1, cl[1]},
-			}
-		}
-	}
-
-	return clusters
+	return toSegment
 }
+
+type clusterRange [2]int // start, end (excluded, in slice syntax)
 
 func segmentByAngleBreak(angles []fl, outliers map[int]bool) []clusterRange {
 	const angleBreak = 75
@@ -257,36 +71,306 @@ func segmentByAngleBreak(angles []fl, outliers map[int]bool) []clusterRange {
 	return out
 }
 
-// expect one cluster, and returns the index where half a turn has been made
-// returns false if the shape should not be split
-// outliers are ignored
-func splitSpirale(angles []fl, outliers map[int]bool) (int, bool) {
-	var (
-		min, max      = inf, -inf
-		first         = inf
-		indexHalfTurn = -1
-	)
+// kmean to fit lines
 
-	for i, current := range angles {
-		if outliers[i] {
+type clusters []int // cluster for each point
+
+// return the number of clusters
+func (cl clusters) k() (K int) {
+	if len(cl) == 0 {
+		return 0
+	}
+
+	for _, k := range cl {
+		if k > K {
+			K = k
+		}
+	}
+	return K + 1
+}
+
+func (cl clusters) segment(points []Pos) ([][]Pos, [][]int) {
+	out := make([][]Pos, cl.k())
+	mappingToIndex := make([][]int, cl.k())
+	for i := range cl {
+		k, p := cl[i], points[i]
+		out[k] = append(out[k], p)
+		mappingToIndex[k] = append(mappingToIndex[k], i)
+	}
+	return out, mappingToIndex
+}
+
+type line struct {
+	a, b   fl
+	center Pos
+}
+
+func (l line) distance(p Pos) fl {
+	distLine := p.Y - (l.a*p.X + l.b)
+	distLine = distLine * distLine
+	distCenter := p.Sub(l.center).NormSquared()
+
+	return distLine + 0.001*distCenter
+}
+
+// weights must sum to 1
+func fitLineWeighted(points []Pos, weights []fl) (line, fl) {
+	if len(points) == 1 {
+		return line{1, points[0].Y, points[0]}, 0
+	}
+
+	var sx, sy, sxy, sx2 fl // 1// N Sum(x), ...
+	var center Pos
+	for i, p := range points {
+		x, y := p.X, p.Y
+		w := weights[i]
+
+		sx += x * w
+		sy += y * w
+		sxy += x * y * w
+		sx2 += x * x * w
+
+		center.X += x * w
+		center.Y += y * w
+	}
+	// y = ax + b
+	a := (sxy - sx*sy) / (sx2 - sx*sx)
+	b := sy - a*sx
+
+	li := line{a, b, center}
+	// fit error
+	N := fl(len(points))
+	var err fl
+	for _, p := range points {
+		err += li.distance(p)
+	}
+	err /= N
+
+	return li, err
+}
+
+func assignClusters(points []Pos, lines []line, out clusters) (hasChanged bool) {
+	for i, p := range points {
+		// find the best line
+		// enforcing sequentiallity using the fact that points have sorted X values
+
+		if i == 0 {
+			out[i] = 0
 			continue
 		}
-		if first == inf {
-			first = current
+		previousK := out[i-1]
+		bestK := previousK
+		if previousK != len(lines)-1 {
+			// choose between the cluster of the previous point or the next
+			d1, d2 := lines[previousK].distance(p), lines[previousK+1].distance(p)
+			if d2 < d1 {
+				bestK = previousK + 1
+			}
 		}
 
-		if current < min {
-			min = current
-		}
-		if current > max {
-			max = current
+		if out[i] != bestK {
+			hasChanged = true
 		}
 
-		if indexHalfTurn == -1 && abs(current-first) > 200 {
-			indexHalfTurn = i
+		out[i] = bestK
+	}
+
+	return
+}
+
+func computeLines(points []Pos, cls clusters, inOut []line) fl {
+	byClusters, _ := cls.segment(points)
+	var err fl
+	for k, clusterPoints := range byClusters {
+
+		// compute the weights from the distance to the center
+		weights := make([]fl, len(clusterPoints))
+		var totalWeigth fl
+		for i, p := range clusterPoints {
+			dx := abs(inOut[k].center.X - p.X)
+			w := 1 / (10 + dx*sqrt(dx))
+			weights[i] = w
+			totalWeigth += w
+		}
+		for i := range weights { // normalize
+			weights[i] /= totalWeigth
+		}
+
+		var clusterErr fl
+		inOut[k], clusterErr = fitLineWeighted(clusterPoints, weights)
+		err += clusterErr
+	}
+	return err
+}
+
+type kmResult struct {
+	points   []Pos
+	lines    []line
+	clusters clusters
+	fitError fl
+}
+
+// average cluster error
+func (km kmResult) error() fl {
+	var totalErr fl
+	clusters, _ := km.clusters.segment(km.points)
+	for k, points := range clusters {
+		cl := km.lines[k]
+		var clusterErr fl
+		for _, p := range points {
+			clusterErr += cl.distance(p)
+		}
+		Nk := fl(len(points))
+		clusterErr /= Nk
+
+		// penalize small clusters
+		clusterErr *= 0.5 * (1 + 2/Nk)
+
+		totalErr += clusterErr
+	}
+	return totalErr
+}
+
+func kmeans(points []Pos, K int) kmResult {
+	// start with uniform repartition of centers
+	L := len(points)
+	step := L / K
+	lines := make([]line, K)
+	for i := 0; i < K; i++ {
+		start, end := i*step, (i+1)*step
+		segment := points[start:end]
+		weights := make([]fl, len(segment))
+		for j := range weights {
+			weights[j] = 1. / fl(len(segment))
+		}
+		lines[i], _ = fitLineWeighted(segment, weights)
+	}
+	cls := make(clusters, L)
+
+	var fitError fl
+	const iterMax = 100
+	for i, hasChanged := 0, true; i < iterMax && hasChanged; i++ {
+		hasChanged = assignClusters(points, lines, cls)
+		fitError = computeLines(points, cls, lines)
+	}
+
+	return kmResult{points: points, lines: lines, clusters: cls, fitError: fitError}
+}
+
+func bestKmeans(angles []fl) kmResult {
+	const KMax = 5
+
+	toSegment := anglesToPos(angles)
+
+	// run kmeans for each K and pick the best error to detect outliers
+	bestWCSSK, bestWCSS := kmResult{}, inf
+	for K := 1; K <= KMax; K++ {
+		kmeansOut := kmeans(toSegment, K)
+
+		if e := kmeansOut.error(); e < bestWCSS {
+			bestWCSS = e
+			bestWCSSK = kmeansOut
 		}
 	}
 
-	// only split when the shape rotates way more than a circle
-	return indexHalfTurn, (max - min) > 380
+	return bestWCSSK
+}
+
+type indexedDistances struct {
+	distances []fl
+	indices   []int
+}
+
+func newIndexedDistances(distances []fl) indexedDistances {
+	indices := make([]int, len(distances))
+	for i := range indices {
+		indices[i] = i
+	}
+	return indexedDistances{distances, indices}
+}
+
+func (a indexedDistances) Len() int { return len(a.distances) }
+func (a indexedDistances) Swap(i, j int) {
+	a.distances[i], a.distances[j] = a.distances[j], a.distances[i]
+	a.indices[i], a.indices[j] = a.indices[j], a.indices[i]
+}
+func (a indexedDistances) Less(i, j int) bool { return a.distances[i] < a.distances[j] }
+
+func outliers(distances []fl) []int {
+	sorted := newIndexedDistances(distances)
+	sort.Sort(sorted) // distances is mutated
+
+	// starting at the median, incrementaly
+	// test each value for outliers
+	i := len(distances) / 2
+	mean, std := meanAndStd(sorted.distances[:i])
+	mean2 := std*std + mean*mean // used to compute the std by recursion
+	for ; i < len(distances); i++ {
+		d := distances[i]
+
+		thresholdMax := mean + 4*std // 4 is tuned experimentally
+
+		if d > thresholdMax { // found outlier, we can break here since the slice is sorted
+			break
+		} else { // add the new value to the accepted serie
+			N := fl(i + 1) // number of points before adding the new
+			mean = (N*mean + d) / (N + 1)
+			mean2 = (N*mean2 + d*d) / (N + 1)
+			std = sqrt(mean2 - mean*mean)
+		}
+	}
+	// reject indices starting at i (maybe empty)
+	return sorted.indices[i:]
+}
+
+func (km kmResult) outliers() map[int]bool {
+	out := make(map[int]bool)
+	clusters, mappingToIndex := km.clusters.segment(km.points)
+	for k, points := range clusters {
+		cl := km.lines[k]
+		pointIndices := mappingToIndex[k]
+
+		if len(points) <= 2 { // consider a degenerated cluster as outliers
+			for _, i := range pointIndices {
+				out[i] = true
+			}
+			continue
+		}
+
+		distances := make([]fl, len(points))
+		for i, p := range points {
+			distances[i] = cl.distance(p)
+		}
+
+		outls := outliers(distances)
+		for _, i := range outls { // map back to the input indices
+			out[pointIndices[i]] = true
+		}
+	}
+
+	return out
+}
+
+// segmentation filters outliers and segments the resulting
+// points
+// outlier are not present in the returned shapes
+func (sh Shape) segment() (out []Shape) {
+	if len(sh) < 2 {
+		return Symbol{sh}
+	}
+
+	angles := sh.smooth().directions()
+
+	// compute the sub shapes
+	km := bestKmeans(angles)
+	outls := km.outliers()
+
+	clusters := segmentByAngleBreak(angles, outls)
+
+	// return the subslices
+	for _, cl := range clusters {
+		subShape := sh[cl[0]:cl[1]]
+		out = append(out, subShape)
+	}
+	return out
 }

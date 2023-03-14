@@ -27,17 +27,36 @@ const (
 // and is later used to map a mouse entry to a rune.
 type SymbolStore struct {
 	// acts as a map[rune][]Symbol, but with faster iteration,
-	entries []mapEntry
+	entries          []mapEntry
+	derivativesStart int
 }
 
 // NewSymbolStore return a database for the given [shapes].
 func NewSymbolStore(shapes map[rune]Symbol) *SymbolStore {
-	entries := make([]mapEntry, 0, len(shapes))
-	for r, sy := range shapes {
-		entries = append(entries, mapEntry{sy.SegmentToAtoms(), r})
+	out := &SymbolStore{
+		entries: make([]mapEntry, 0, len(shapes)),
 	}
-	sort.Slice(entries, func(i, j int) bool { return entries[i].R < entries[j].R })
-	return &SymbolStore{entries: entries}
+	for r, sy := range shapes {
+		fp := sy.SegmentToAtoms()
+		out.entries = append(out.entries, mapEntry{fp, r})
+	}
+	sort.Slice(out.entries, func(i, j int) bool { return out.entries[i].R < out.entries[j].R })
+
+	out.setupDerivatives()
+
+	return out
+}
+
+func (ss *SymbolStore) setupDerivatives() {
+	var derivatives []mapEntry
+	for _, sy := range ss.entries {
+		for _, deri := range sy.Footprint.derivatives() {
+			derivatives = append(derivatives, mapEntry{deri, sy.R})
+		}
+	}
+
+	ss.derivativesStart = len(ss.entries)
+	ss.entries = append(ss.entries, derivatives...)
 }
 
 // NewSymbolStoreFromDisk load a store previously saved with
@@ -55,11 +74,8 @@ func NewSymbolStoreFromDisk(filename string) (*SymbolStore, error) {
 		return nil, fmt.Errorf("deserializing on-disk store: %s", err)
 	}
 
-	for _, ee := range out.entries {
-		if ee.R == '2' || ee.R == '3' {
-			fmt.Println(string(ee.R), ee.Shape)
-		}
-	}
+	out.setupDerivatives()
+
 	return &out, nil
 }
 
@@ -83,7 +99,7 @@ func (ss SymbolStore) Serialize(filename string) error {
 }
 
 func (ss SymbolStore) MarshalJSON() ([]byte, error) {
-	return json.Marshal(ss.entries)
+	return json.Marshal(ss.entries[:ss.derivativesStart])
 }
 
 func (ss *SymbolStore) UnmarshalJSON(data []byte) error {
@@ -91,8 +107,8 @@ func (ss *SymbolStore) UnmarshalJSON(data []byte) error {
 }
 
 type mapEntry struct {
-	Shape ShapeFootprint `json:"s"`
-	R     rune           `json:"r"`
+	Footprint ShapeFootprint `json:"s"`
+	R         rune           `json:"r"`
 }
 
 type ShapeFootprint []ShapeAtom

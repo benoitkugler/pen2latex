@@ -465,10 +465,10 @@ func fitCircleOrEllipse(points []Pos) (Circle, fl) {
 	return ellipse, errE
 }
 
-// compute the largest angular gap between two projected points on /
-// e
+// compute the largest angular gap between two projected points on e
 // it will low for real circle (ellipses) and high for half circles
 func isEllipseComplete(points []Pos, e Circle) bool {
+	const halfCircleThreshold = 85
 	var maxDiff fl
 	for i := range points {
 		var p1, p2 Pos
@@ -485,8 +485,14 @@ func isEllipseComplete(points []Pos, e Circle) bool {
 			maxDiff = a
 		}
 	}
+	hasLowAngleOpening := maxDiff < halfCircleThreshold
 
-	return maxDiff < 40
+	// also compare the distance between extremal points
+	// to the radius
+	dist := points[0].Sub(points[len(points)-1]).NormSquared()
+	hasLowDistance := dist < e.Radius.NormSquared()
+
+	return hasLowAngleOpening && hasLowDistance
 }
 
 // compute (approximatly) the squared distance between the farthest point
@@ -660,11 +666,8 @@ func (sh Shape) identify() []ShapeAtom {
 		errCircle = inf
 	}
 
-	// slightly penalize half circle
-	errCircle += 0.02 * ellipsePenalty(sh, circle)
-
 	// give priority to segment for "almost" linear shapes
-	if errSegment < 1 { // err is average for
+	if errSegment < 0.7 { // err is average for
 		return []ShapeAtom{segment}
 	} else if errSegment > errBezier {
 		if (errSegment-errBezier)/errSegment < 0.05 { // 5%
@@ -672,23 +675,81 @@ func (sh Shape) identify() []ShapeAtom {
 		}
 	}
 
-	// prefer circle over bezier
-	if isEllipseComplete(sh, circle) {
+	// prefer real circle over bezier
+	isComplete := isEllipseComplete(sh, circle)
+	if errCircle < inf && isComplete {
 		return []ShapeAtom{circle}
 	}
+
+	// slightly penalize half circle
+	errCircle += 0.02 * ellipsePenalty(sh, circle)
 
 	if errSegment <= errCircle && errSegment <= errBezier {
 		return []ShapeAtom{segment}
 	} else if errBezier <= errSegment && errBezier <= errCircle {
 		// make sure two lines are not better
-		ok, l1, l2 := isBezierTwoLines(bezier, sh, errBezier)
-		if ok {
+		if ok, l1, l2 := isBezierTwoLines(bezier, sh, errBezier); ok {
 			return []ShapeAtom{l1, l2}
+		}
+		if ok, b1, b2 := isShapeSpirale(sh, errBezier, false); ok {
+			return []ShapeAtom{b1, b2}
 		}
 		return []ShapeAtom{bezier}
 	} else {
+		// handle the spirale shapes
+		if ok, b1, b2 := isShapeSpirale(sh, errCircle, true); ok {
+			return []ShapeAtom{b1, b2}
+		} else if !isComplete { // prever bezier
+			return []ShapeAtom{bezier}
+		}
 		return []ShapeAtom{circle}
 	}
+}
+
+// special cases when the initial angular segmentation is wrong
+
+// returns the index where half a turn has been made
+// returns the max rotation
+func (sh Shape) hasFullRotation() (int, fl) {
+	angles := sh.smooth().directions()
+	var (
+		mi, ma        = inf, -inf
+		indexHalfTurn = -1
+	)
+
+	for i, current := range angles {
+		if current < mi {
+			mi = current
+		}
+		if current > ma {
+			ma = current
+		}
+
+		maxDelta := max(abs(current-mi), abs(current-ma))
+
+		if indexHalfTurn == -1 && maxDelta > 190 {
+			indexHalfTurn = i
+		}
+	}
+
+	return indexHalfTurn, ma - mi
+}
+
+func isShapeSpirale(sh Shape, errRef fl, isRefCirle bool) (isSpirale bool, c1, c2 Bezier) {
+	index, maxRotation := sh.hasFullRotation()
+	shouldSplit := (isRefCirle && maxRotation > 380) || maxRotation > 270
+	if !shouldSplit {
+		return
+	}
+
+	// compare two bezier with one circle / bezier
+	s1, s2 := sh[:index], sh[index:]
+	b1, e1 := fitBezier(s1)
+	b2, e2 := fitBezier(s2)
+	if (e1+e2)/2 < errRef {
+		return true, b1, b2
+	}
+	return
 }
 
 // check if the shape is rather two straight lines
@@ -709,4 +770,37 @@ func isBezierTwoLines(be Bezier, sh Shape, errBezier fl) (isTwoLines bool, line1
 	}
 
 	return
+}
+
+// hasTwoBeziersSShape checks if the two curves describe (approximately)
+// the two quadratic parts of an S shape
+// note that the order of b1 and b2 matters
+func hasTwoBeziersSShape(b1, b2 Bezier) (Bezier, bool) {
+	// TODO:
+	return Bezier{}, false
+}
+
+// areTwoBeziersCircle checks if the two curves describe (approximately)
+// the two halves of a circle/ellipse
+// note that the order of b1 and b2 matters
+func areTwoBeziersCircle(b1, b2 Bezier) (Circle, bool) {
+	const toleranceD = 5
+	if distP(b1.P3, b2.P0) > toleranceD && distP(b2.P3, b1.P0) > toleranceD {
+		return Circle{}, false
+	}
+	if !(b1.isConvexe() && b2.isConvexe()) {
+		return Circle{}, false
+	}
+
+	const nbPoints = 40
+	points := make([]Pos, nbPoints)
+	const L = nbPoints / 2
+	for i := 0; i < L; i++ {
+		t := fl(i) / L
+		p1, p2 := b1.eval(t), b2.eval(t)
+		points[i] = p1
+		points[i+L] = p2
+	}
+	circle, err := fitCircleOrEllipse(points)
+	return circle, err < 2
 }

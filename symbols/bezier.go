@@ -148,6 +148,14 @@ func (b *Bezier) normalize() (center Pos, c, s fl) {
 	return
 }
 
+// return true if the control points are
+// in the same side
+func (be Bezier) isConvexe() bool {
+	be.normalize()
+	p1, p2 := be.P1, be.P2
+	return p1.Y*p2.Y >= 0 && p1.X <= p2.X
+}
+
 // assume b is normalized
 func (be Bezier) extremumY() Pos {
 	a := be.P1.Y
