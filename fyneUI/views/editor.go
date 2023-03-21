@@ -16,7 +16,7 @@ import (
 	"golang.org/x/image/math/fixed"
 )
 
-func showEditor(db *symbols.SymbolStore) *fyne.Container {
+func showEditor(db *symbols.Store) *fyne.Container {
 	// ed := newEditor(db)
 
 	matched := widget.NewLabel("Caractère reconnu")
@@ -29,6 +29,8 @@ func showEditor(db *symbols.SymbolStore) *fyne.Container {
 	rec := whiteboard.NewRecorder()
 
 	reset := widget.NewButton("Reset", func() {
+		rec.Content = nil
+		rec.Refresh()
 		rec.Recorder.Reset()
 		matched.SetText("Caractère reconnu")
 	})
@@ -40,19 +42,22 @@ func showEditor(db *symbols.SymbolStore) *fyne.Container {
 
 		// si := rec.Recorder.Current().Shape().AngleClustersGraph()
 		record := rec.Recorder.Current()
+		rec.Content = []symbols.Symbol{record.Compound()}
+		rec.Refresh()
 
 		shape := record.Shape()
-		fmt.Println("Shape", shape)
-		segments := symbols.Symbol{shape}.SegmentToAtoms()
-		fmt.Println("K", len(segments), segments)
-		imag := renderAtoms(segments, shape.BoundingBox())
-		savePng(imag)
+		fmt.Println("Shape:")
+		fmt.Println(shape)
+		// segments := symbols.Symbol{shape}.SegmentToAtoms()
+		// fmt.Println("K", len(segments), segments)
+		// imag := renderAtoms(segments, shape.BoundingBox())
+		// savePng(imag)
 		// *shapeImg = *canvas.NewRasterFromImage(imag)
 		// shapeImg.Resize(fyne.Size{Width: float32(imag.Bounds().Dx()), Height: float32(imag.Bounds().Dy())})
 		// shapeImg.Refresh()
 
-		r, compound := db.Lookup(record)
-		matched.SetText(fmt.Sprintf("Caractère: %s (composé : %v)", string(r), compound))
+		r := db.Lookup(record.Compound(), symbols.Rect{})
+		matched.SetText(fmt.Sprintf("Caractère: %s", string(r)))
 	}
 	return container.NewVBox(rec, reset, matched)
 }
@@ -62,12 +67,12 @@ type editor struct {
 	recognized  *widget.Label
 	resetButton *widget.Button
 
-	db *symbols.SymbolStore
+	db *symbols.Store
 
 	line layout.Line
 }
 
-func newEditor(db *symbols.SymbolStore) *editor {
+func newEditor(db *symbols.Store) *editor {
 	ed := &editor{
 		wb:          whiteboard.NewWhiteboard(),
 		recognized:  widget.NewLabel("Dessiner un caractère..."),
@@ -116,25 +121,16 @@ func posToFixed(pos symbols.Pos) fixed.Point26_6 {
 	return fixed.Point26_6{X: fixed.Int26_6(pos.X * 64), Y: fixed.Int26_6(pos.Y * 64)}
 }
 
-func renderAtom(atom symbols.ShapeAtom, rec *rasterx.Stroker) {
-	switch atom := atom.(type) {
-	case symbols.Bezier:
-		rec.Start(posToFixed(atom.P0))
-		rec.CubeBezier(posToFixed(atom.P1), posToFixed(atom.P2), posToFixed(atom.P3))
-		rec.Stop(false)
-		// draw control points
-		rasterx.AddCircle(float64(atom.P1.X), float64(atom.P1.Y), 2, &rec.Filler)
-		rasterx.AddCircle(float64(atom.P2.X), float64(atom.P2.Y), 2, &rec.Filler)
-	case symbols.Circle:
-		rasterx.AddEllipse(float64(atom.Center.X), float64(atom.Center.Y), float64(atom.Radius.X), float64(atom.Radius.Y), 0, rec)
-	case symbols.Segment:
-		rec.Start(posToFixed(atom.Start))
-		rec.Line(posToFixed(atom.End))
-		rec.Stop(false)
-	}
+func renderBezier(atom symbols.Bezier, rec *rasterx.Stroker) {
+	rec.Start(posToFixed(atom.P0))
+	rec.CubeBezier(posToFixed(atom.P1), posToFixed(atom.P2), posToFixed(atom.P3))
+	rec.Stop(false)
+	// draw control points
+	rasterx.AddCircle(float64(atom.P1.X), float64(atom.P1.Y), 2, &rec.Filler)
+	rasterx.AddCircle(float64(atom.P2.X), float64(atom.P2.Y), 2, &rec.Filler)
 }
 
-func renderAtoms(atoms []symbols.ShapeAtom, bbox symbols.Rect) image.Image {
+func renderAtoms(atoms []symbols.Bezier, bbox symbols.Rect) image.Image {
 	r := image.Rect(int(bbox.LR.X), int(bbox.LR.Y), int(bbox.UL.X), int(bbox.UL.Y))
 	bounds := image.Rect(0, 0, r.Max.X, r.Max.Y)
 	fmt.Println(bounds)
@@ -142,7 +138,7 @@ func renderAtoms(atoms []symbols.ShapeAtom, bbox symbols.Rect) image.Image {
 	sc := rasterx.NewScannerGV(bounds.Dx(), bounds.Dy(), img, bounds)
 	rec := rasterx.NewStroker(bounds.Dx(), bounds.Dy(), sc)
 	for _, atom := range atoms {
-		renderAtom(atom, rec)
+		renderBezier(atom, rec)
 	}
 	rec.Draw()
 	return img

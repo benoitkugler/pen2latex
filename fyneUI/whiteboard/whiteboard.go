@@ -48,7 +48,7 @@ func (w *whiteboardRenderer) Layout(size fyne.Size) {
 }
 
 func (w *whiteboardRenderer) MinSize() fyne.Size {
-	return fyne.NewSize(sym.EMWidth, sym.EMHeight)
+	return fyne.NewSize(2*sym.EMWidth, 3*sym.EMHeight)
 }
 
 // Objects returns all objects that should be drawn.

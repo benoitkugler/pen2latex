@@ -46,7 +46,7 @@ func (w *recorderRenderer) Layout(size fyne.Size) {
 }
 
 func (w *recorderRenderer) MinSize() fyne.Size {
-	return fyne.NewSize(sym.EMWidth, sym.EMHeight)
+	return fyne.NewSize(sym.EMWidth, 5*sym.EMHeight)
 }
 
 // Objects returns all objects that should be drawn.

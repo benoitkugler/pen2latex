@@ -19,7 +19,7 @@ func Home() *fyne.Container {
 
 	main := container.NewVBox()
 
-	database, _ := symbols.NewSymbolStoreFromDisk(storePath) // TODO:
+	database, _ := symbols.NewStoreFromDisk(storePath) // TODO:
 	var showButtons func()
 
 	showButtons = func() {
@@ -28,7 +28,7 @@ func Home() *fyne.Container {
 			widget.NewButton("Créer la table des caractères...", func() {
 				main.RemoveAll()
 				main.Add(showSymbolTable(func(m map[rune]symbols.Symbol) {
-					database = symbols.NewSymbolStore(m)
+					database = symbols.NewStore(m)
 					err = database.Serialize(storePath)
 					if err != nil {
 						panic(err) // TODO:

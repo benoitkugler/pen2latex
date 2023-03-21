@@ -39,14 +39,8 @@ type Pos struct {
 
 func (p Pos) String() string { return fmt.Sprintf("{X: %.01f, Y:%.01f}", p.X, p.Y) }
 
-// (x, y) => (x*c - s*y, x*s + y*c)
-func (p *Pos) rotate(cosTheta, sinTheta fl) {
-	x, y := p.X, p.Y
-	p.X = x*cosTheta - y*sinTheta
-	p.Y = x*sinTheta + y*cosTheta
-}
-
 func (p *Pos) Scale(s fl)       { p.X *= s; p.Y *= s }
+func (p *Pos) normalize()       { p.Scale(1 / p.Norm()) }
 func (p Pos) ScaleTo(s fl) Pos  { p.Scale(s); return p }
 func (p Pos) Add(other Pos) Pos { p.X += other.X; p.Y += other.Y; return p }
 func (p Pos) Sub(other Pos) Pos { p.X -= other.X; p.Y -= other.Y; return p }
@@ -56,7 +50,18 @@ func (p Pos) NormSquared() fl   { return p.X*p.X + p.Y*p.Y }
 // return the quadratic norm
 func distP(p1, p2 Pos) fl { return p1.Sub(p2).Norm() }
 
+// returns the dot product of a and b
+func dotProduct(a, b Pos) fl { return (a.X * b.X) + (a.Y * b.Y) }
+
 var inf = fl(math.Inf(+1))
+
+// return angle in degree
+func angle(u, v Pos) fl {
+	dot := float64(u.X*v.X + u.Y*v.Y) // u.v
+	det := float64(u.X*v.Y - u.Y*v.X) // u ^ v
+	angle := math.Atan2(det, dot)     // in radian
+	return fl(angle * 180 / math.Pi)  // in degre
+}
 
 // EmptyRect represents an empty rectangle,
 // honoring the following equalities :
@@ -87,6 +92,12 @@ func (r Rect) contains(p Pos) bool {
 		return false
 	}
 	return r.UL.X <= p.X && p.X <= r.LR.X && r.UL.Y <= p.Y && p.Y <= r.LR.Y
+}
+
+func (r Rect) tranlate(p Pos) Rect {
+	r.UL = r.UL.Add(p)
+	r.LR = r.LR.Add(p)
+	return r
 }
 
 func (r *Rect) enlarge(point Pos) {
@@ -149,7 +160,7 @@ func (sh Shape) BoundingBox() Rect {
 }
 
 // Symbol is an union of connex shapes,
-// used to represent one grapheme (like \Sigma, an accentued character, etc...)
+// used to represent one grapheme (like Sigma, an accentued character, etc...)
 type Symbol []Shape
 
 // Union merge all the connex components
@@ -157,6 +168,16 @@ func (sy Symbol) Union() Shape {
 	var out Shape
 	for _, r := range sy {
 		out = append(out, r...)
+	}
+	return out
+}
+
+func (seg segment) toPoints() Shape {
+	const nbPoints = 20
+	var out Shape
+	AB := seg.p1.Sub(seg.p0)
+	for i := 0; i < nbPoints; i++ {
+		out = append(out, seg.p0.Add(AB.ScaleTo(fl(i)/nbPoints)))
 	}
 	return out
 }
