@@ -15,7 +15,7 @@ func TestPathIndices(t *testing.T) {
 	tu.Assert(t, indices[0] == 0 && indices[len(indices)-1] == 1)
 }
 
-func generateCircle(center Pos, radius fl, nbPoints int) Shape {
+func generateCircle(center Pos, radius Fl, nbPoints int) Shape {
 	var out Shape
 	for i := 0; i < nbPoints; i++ {
 		theta := 2 * math.Pi * float64(i) / float64(nbPoints)
@@ -59,7 +59,7 @@ func TestFitBezier(t *testing.T) {
 	printShape(t, fitted.toPoints(), "bezier_cube4_fitted.png")
 }
 
-func almostEqual(u, v fl) bool     { return abs(u-v) < 1e-3 }
+func almostEqual(u, v Fl) bool     { return abs(u-v) < 1e-3 }
 func almostEqualPos(u, v Pos) bool { return almostEqual(u.X, v.X) && almostEqual(u.Y, v.Y) }
 
 func TestFitBezierArtefact(t *testing.T) {

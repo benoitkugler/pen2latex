@@ -8,6 +8,7 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/widget"
+	"github.com/benoitkugler/pen2latex/layout"
 	sym "github.com/benoitkugler/pen2latex/symbols"
 	"golang.org/x/image/colornames"
 )
@@ -79,7 +80,7 @@ type Recorder struct {
 
 	Points []record
 
-	Recorder sym.Recorder
+	Recorder layout.Recorder
 
 	Content []sym.Symbol
 

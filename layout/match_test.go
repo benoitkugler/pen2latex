@@ -7,7 +7,7 @@ import (
 )
 
 func rect(xLeft, xRight, yTop, yBottom float32) symbols.Rect {
-	return symbols.Rect{UL: symbols.Pos{xLeft, yTop}, LR: symbols.Pos{xRight, yBottom}}
+	return symbols.Rect{UL: symbols.Pos{X: xLeft, Y: yTop}, LR: symbols.Pos{X: xRight, Y: yBottom}}
 }
 
 func Test_isRectInAreas(t *testing.T) {

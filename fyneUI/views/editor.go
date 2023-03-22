@@ -11,12 +11,12 @@ import (
 	"fyne.io/fyne/v2/widget"
 	"github.com/benoitkugler/pen2latex/fyneUI/whiteboard"
 	"github.com/benoitkugler/pen2latex/layout"
-	"github.com/benoitkugler/pen2latex/symbols"
+	sy "github.com/benoitkugler/pen2latex/symbols"
 	"github.com/srwiley/rasterx"
 	"golang.org/x/image/math/fixed"
 )
 
-func showEditor(db *symbols.Store) *fyne.Container {
+func showEditor(db *sy.Store) *fyne.Container {
 	// ed := newEditor(db)
 
 	matched := widget.NewLabel("Caractère reconnu")
@@ -41,13 +41,14 @@ func showEditor(db *symbols.Store) *fyne.Container {
 		// data.Refresh()
 
 		// si := rec.Recorder.Current().Shape().AngleClustersGraph()
-		record := rec.Recorder.Current()
-		rec.Content = []symbols.Symbol{record.Compound()}
+		record := rec.Recorder.Record
+		fmt.Println(record)
+		rec.Content = []sy.Symbol{sy.Symbol(record)}
 		rec.Refresh()
 
-		shape := record.Shape()
-		fmt.Println("Shape:")
-		fmt.Println(shape)
+		fmt.Println(record.InferSymbol().IsCompound())
+		fmt.Println("Symbol:")
+		fmt.Println(record)
 		// segments := symbols.Symbol{shape}.SegmentToAtoms()
 		// fmt.Println("K", len(segments), segments)
 		// imag := renderAtoms(segments, shape.BoundingBox())
@@ -56,7 +57,7 @@ func showEditor(db *symbols.Store) *fyne.Container {
 		// shapeImg.Resize(fyne.Size{Width: float32(imag.Bounds().Dx()), Height: float32(imag.Bounds().Dy())})
 		// shapeImg.Refresh()
 
-		r := db.Lookup(record.Compound(), symbols.Rect{})
+		r := db.Lookup(record.InferSymbol(), sy.Rect{})
 		matched.SetText(fmt.Sprintf("Caractère: %s", string(r)))
 	}
 	return container.NewVBox(rec, reset, matched)
@@ -67,12 +68,12 @@ type editor struct {
 	recognized  *widget.Label
 	resetButton *widget.Button
 
-	db *symbols.Store
+	db *sy.Store
 
 	line layout.Line
 }
 
-func newEditor(db *symbols.Store) *editor {
+func newEditor(db *sy.Store) *editor {
 	ed := &editor{
 		wb:          whiteboard.NewWhiteboard(),
 		recognized:  widget.NewLabel("Dessiner un caractère..."),
@@ -86,8 +87,8 @@ func newEditor(db *symbols.Store) *editor {
 }
 
 func (ed *editor) tryMatchShape() {
-	rec := ed.wb.Recorder.Current()
-	if len(rec.Compound()) == 0 {
+	rec := ed.wb.Recorder.Record
+	if len(rec) == 0 {
 		return
 	}
 	ed.line.Insert(rec, ed.db)
@@ -96,10 +97,10 @@ func (ed *editor) tryMatchShape() {
 	ed.recognized.SetText(ed.line.LaTeX())
 }
 
-func (ed *editor) showScope(pos symbols.Pos) {
-	glyph := symbols.Rect{
-		UL: symbols.Pos{X: pos.X - 1, Y: pos.Y - 1},
-		LR: symbols.Pos{X: pos.X + 1, Y: pos.Y + 1},
+func (ed *editor) showScope(pos sy.Pos) {
+	glyph := sy.Rect{
+		UL: sy.Pos{X: pos.X - 1, Y: pos.Y - 1},
+		LR: sy.Pos{X: pos.X + 1, Y: pos.Y + 1},
 	}
 	_, scope, _ := ed.line.FindNode(glyph)
 	if scope.IsEmpty() { // root
@@ -117,11 +118,11 @@ func (ed *editor) clear() {
 	ed.recognized.SetText("Dessiner un caractère...")
 }
 
-func posToFixed(pos symbols.Pos) fixed.Point26_6 {
+func posToFixed(pos sy.Pos) fixed.Point26_6 {
 	return fixed.Point26_6{X: fixed.Int26_6(pos.X * 64), Y: fixed.Int26_6(pos.Y * 64)}
 }
 
-func renderBezier(atom symbols.Bezier, rec *rasterx.Stroker) {
+func renderBezier(atom sy.Bezier, rec *rasterx.Stroker) {
 	rec.Start(posToFixed(atom.P0))
 	rec.CubeBezier(posToFixed(atom.P1), posToFixed(atom.P2), posToFixed(atom.P3))
 	rec.Stop(false)
@@ -130,7 +131,7 @@ func renderBezier(atom symbols.Bezier, rec *rasterx.Stroker) {
 	rasterx.AddCircle(float64(atom.P2.X), float64(atom.P2.Y), 2, &rec.Filler)
 }
 
-func renderAtoms(atoms []symbols.Bezier, bbox symbols.Rect) image.Image {
+func renderAtoms(atoms []sy.Bezier, bbox sy.Rect) image.Image {
 	r := image.Rect(int(bbox.LR.X), int(bbox.LR.Y), int(bbox.UL.X), int(bbox.UL.Y))
 	bounds := image.Rect(0, 0, r.Max.X, r.Max.Y)
 	fmt.Println(bounds)

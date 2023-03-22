@@ -10,23 +10,23 @@ import (
 
 func Test_mapBetweenArcLengths(t *testing.T) {
 	tests := []struct {
-		a1       []fl
-		a2       []fl
+		a1       []Fl
+		a2       []Fl
 		wantOut1 splitMap
 		wantOut2 splitMap
 		wantOk   bool
 	}{
 		{
-			[]fl{0, 1, 2, 3}, []fl{0, 1, 2, 3}, splitMap{}, splitMap{}, true,
+			[]Fl{0, 1, 2, 3}, []Fl{0, 1, 2, 3}, splitMap{}, splitMap{}, true,
 		},
 		{
-			[]fl{0.2435399, 0.4719608, 0.70726687, 1}, []fl{0.2371314, 0.4882852, 0.7089619, 1}, splitMap{}, splitMap{}, true,
+			[]Fl{0.2435399, 0.4719608, 0.70726687, 1}, []Fl{0.2371314, 0.4882852, 0.7089619, 1}, splitMap{}, splitMap{}, true,
 		},
 		{
-			[]fl{0.6944475, 1}, []fl{0.6811506, 1}, splitMap{}, splitMap{}, true,
+			[]Fl{0.6944475, 1}, []Fl{0.6811506, 1}, splitMap{}, splitMap{}, true,
 		},
 		{
-			[]fl{0.6, 1}, []fl{0.3, 1}, splitMap{0: []fl{0.5}}, splitMap{1: []fl{0.5}}, true,
+			[]Fl{0.6, 1}, []Fl{0.3, 1}, splitMap{0: []Fl{0.5}}, splitMap{1: []Fl{0.5}}, true,
 		},
 	}
 	for _, tt := range tests {
@@ -353,7 +353,7 @@ func TestShapeDistance(t *testing.T) {
 
 		// compare distance with all the shapes
 		// and assert it is minimal for the group
-		maxInGroup, minOutsideGroup := fl(0), inf
+		maxInGroup, minOutsideGroup := Fl(0), Inf
 		fmt.Printf("shape %d (%s, shapes[%d])\n", i, shapes[groupIndex].description, groupIndex)
 		for j, fp2 := range footprints {
 			d := distanceFootprints(fp, fp2)
@@ -518,7 +518,7 @@ func TestSymbolDistance(t *testing.T) {
 
 		// compare distance with all the symbols
 		// and assert it is minimal for the group
-		maxInGroup, minOutsideGroup := fl(0), inf
+		maxInGroup, minOutsideGroup := Fl(0), Inf
 		fmt.Printf("shape %d (%s, symbols[%d])\n", i, symbols[groupIndex].description, groupIndex)
 		for j, fp2 := range footprints {
 			d := distanceSymbols(fp, fp2)

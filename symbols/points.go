@@ -4,63 +4,62 @@ import (
 	"fmt"
 	"math"
 	"strings"
-	"time"
 )
 
-type fl = float32
+type Fl = float32
 
-func min(x, y fl) fl {
+var Inf = Fl(math.Inf(+1))
+
+func min(x, y Fl) Fl {
 	if x < y {
 		return x
 	}
 	return y
 }
 
-func max(x, y fl) fl {
+func max(x, y Fl) Fl {
 	if x > y {
 		return x
 	}
 	return y
 }
 
-func abs(x fl) fl {
+func abs(x Fl) Fl {
 	if x < 0 {
 		return -x
 	}
 	return x
 }
 
-func sqrt(x fl) fl { return fl(math.Sqrt(float64(x))) }
+func Sqrt(x Fl) Fl { return Fl(math.Sqrt(float64(x))) }
 
 // Pos is a 2D point
 type Pos struct {
-	X, Y fl
+	X, Y Fl
 }
 
 func (p Pos) String() string { return fmt.Sprintf("{X: %.01f, Y:%.01f}", p.X, p.Y) }
 
-func (p *Pos) Scale(s fl)       { p.X *= s; p.Y *= s }
+func (p *Pos) Scale(s Fl)       { p.X *= s; p.Y *= s }
 func (p *Pos) normalize()       { p.Scale(1 / p.Norm()) }
-func (p Pos) ScaleTo(s fl) Pos  { p.Scale(s); return p }
+func (p Pos) ScaleTo(s Fl) Pos  { p.Scale(s); return p }
 func (p Pos) Add(other Pos) Pos { p.X += other.X; p.Y += other.Y; return p }
 func (p Pos) Sub(other Pos) Pos { p.X -= other.X; p.Y -= other.Y; return p }
-func (p Pos) Norm() fl          { return sqrt(p.NormSquared()) }
-func (p Pos) NormSquared() fl   { return p.X*p.X + p.Y*p.Y }
+func (p Pos) Norm() Fl          { return Sqrt(p.NormSquared()) }
+func (p Pos) NormSquared() Fl   { return p.X*p.X + p.Y*p.Y }
 
 // return the quadratic norm
-func distP(p1, p2 Pos) fl { return p1.Sub(p2).Norm() }
+func distP(p1, p2 Pos) Fl { return p1.Sub(p2).Norm() }
 
 // returns the dot product of a and b
-func dotProduct(a, b Pos) fl { return (a.X * b.X) + (a.Y * b.Y) }
-
-var inf = fl(math.Inf(+1))
+func dotProduct(a, b Pos) Fl { return (a.X * b.X) + (a.Y * b.Y) }
 
 // return angle in degree
-func angle(u, v Pos) fl {
+func angle(u, v Pos) Fl {
 	dot := float64(u.X*v.X + u.Y*v.Y) // u.v
 	det := float64(u.X*v.Y - u.Y*v.X) // u ^ v
 	angle := math.Atan2(det, dot)     // in radian
-	return fl(angle * 180 / math.Pi)  // in degre
+	return Fl(angle * 180 / math.Pi)  // in degre
 }
 
 // EmptyRect represents an empty rectangle,
@@ -70,8 +69,8 @@ func angle(u, v Pos) fl {
 //   - EmptyRect.enlarge(p) == p
 func EmptyRect() Rect {
 	return Rect{
-		UL: Pos{X: inf, Y: inf},
-		LR: Pos{X: -inf, Y: -inf},
+		UL: Pos{X: Inf, Y: Inf},
+		LR: Pos{X: -Inf, Y: -Inf},
 	}
 }
 
@@ -128,25 +127,22 @@ func (r Rect) Intersection(other Rect) Rect {
 	}
 }
 
-func (r Rect) Area() fl { return r.Width() * r.Height() }
+func (r Rect) Area() Fl { return r.Width() * r.Height() }
 
 func (r Rect) Size() Pos { return Pos{r.Width(), r.Height()} }
 
-func (r Rect) Width() fl  { return max(r.LR.X-r.UL.X, 0) }
-func (r Rect) Height() fl { return max(r.LR.Y-r.UL.Y, 0) }
+func (r Rect) Width() Fl  { return max(r.LR.X-r.UL.X, 0) }
+func (r Rect) Height() Fl { return max(r.LR.Y-r.UL.Y, 0) }
 
 // Shape stores the points of a shape drawn without lifting the pen
 type Shape []Pos
 
 func (sh Shape) String() string {
-	var st strings.Builder
-	st.WriteString("Shape{\n")
-	for _, p := range sh {
-		st.WriteString(p.String())
-		st.WriteString(",")
+	chunks := make([]string, len(sh))
+	for i, p := range sh {
+		chunks[i] = p.String()
 	}
-	st.WriteString("}\n")
-	return st.String()
+	return fmt.Sprintf("{%s}", strings.Join(chunks, ","))
 }
 
 // BoundingBox returns the rectangle enclosing the shape.
@@ -163,6 +159,8 @@ func (sh Shape) BoundingBox() Rect {
 // used to represent one grapheme (like Sigma, an accentued character, etc...)
 type Symbol []Shape
 
+func (sy Symbol) IsCompound() bool { return len(sy) > 1 }
+
 // Union merge all the connex components
 func (sy Symbol) Union() Shape {
 	var out Shape
@@ -177,85 +175,7 @@ func (seg segment) toPoints() Shape {
 	var out Shape
 	AB := seg.p1.Sub(seg.p0)
 	for i := 0; i < nbPoints; i++ {
-		out = append(out, seg.p0.Add(AB.ScaleTo(fl(i)/nbPoints)))
+		out = append(out, seg.p0.Add(AB.ScaleTo(Fl(i)/nbPoints)))
 	}
 	return out
-}
-
-type record struct {
-	shape  Shape
-	timing int64 // in milliseconds
-}
-
-type Record struct {
-	allShapes []Shape
-}
-
-// Compound returns the whole symbol currently drawn
-func (rec Record) Compound() Symbol { return rec.allShapes }
-
-// Shape returns the last connex compoment drawn
-func (rec Record) Shape() Shape {
-	if len(rec.allShapes) == 0 {
-		return nil
-	}
-	return rec.allShapes[len(rec.allShapes)-1]
-}
-
-// LastCompound returns the symbol drawn before the last connex shape
-func (rec Record) LastCompound() Symbol {
-	if len(rec.allShapes) == 0 {
-		return nil
-	}
-	return rec.allShapes[0 : len(rec.allShapes)-1]
-}
-
-// Recorder is used to record the shapes
-// drawn by the user
-type Recorder struct {
-	// trace is the accumulated trace
-	trace []record
-
-	currentShape Shape
-	inShape      bool
-}
-
-// Reset clears the current state of the `Recorder`
-func (rec *Recorder) Reset() {
-	rec.inShape = false
-	rec.trace = rec.trace[:0]
-	rec.currentShape = nil
-}
-
-// Symbol returns the current symbol being recorded.
-// More precisely, it returns the last [Shape] drawn,
-// and the whole compound symbol.
-func (rec Recorder) Current() Record {
-	var out Symbol
-	for _, r := range rec.trace {
-		out = append(out, r.shape)
-	}
-	return Record{out}
-}
-
-// StartShape starts the recording of a new connex shape.
-func (rec *Recorder) StartShape() {
-	rec.inShape = true
-	rec.currentShape = Shape{}
-}
-
-// EndShape ends the recording of the current connex shape.
-// Empty shapes are discarded.
-func (rec *Recorder) EndShape() {
-	rec.inShape = false
-	if current := rec.currentShape; len(current) != 0 {
-		rec.trace = append(rec.trace, record{rec.currentShape, time.Now().UnixMilli()})
-	}
-}
-
-// AddToShape adds a point to the shape.
-func (rec *Recorder) AddToShape(pos Pos) {
-	if rec.inShape {
-		rec.currentShape = append(rec.currentShape, pos)
-	}
 }

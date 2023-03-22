@@ -13,7 +13,7 @@ func (b Bezier) String() string {
 	return fmt.Sprintf("{Pos%s, Pos%s, Pos%s, Pos%s}", b.P0, b.P1, b.P2, b.P3)
 }
 
-func (b Bezier) pointAt(t fl) (out Pos) {
+func (b Bezier) pointAt(t Fl) (out Pos) {
 	t1 := 1 - t
 	A := t1 * t1 * t1
 	B := 3 * t1 * t1 * t
@@ -25,7 +25,7 @@ func (b Bezier) pointAt(t fl) (out Pos) {
 }
 
 // returns B'(t)
-func (b Bezier) derivativeAt(t fl) Pos {
+func (b Bezier) derivativeAt(t Fl) Pos {
 	p0, p1, p2, p3 := b.P0, b.P1, b.P2, b.P3
 	q0, q1, q2 := p1.Sub(p0), p2.Sub(p1), p3.Sub(p2)
 	return q0.ScaleTo(3 * (1 - t) * (1 - t)).
@@ -34,7 +34,7 @@ func (b Bezier) derivativeAt(t fl) Pos {
 }
 
 // returns B”(t)
-func (b Bezier) secondDerivativeAt(t fl) Pos {
+func (b Bezier) secondDerivativeAt(t Fl) Pos {
 	p0, p1, p2, p3 := b.P0, b.P1, b.P2, b.P3
 	q0, q1, q2 := p1.Sub(p0), p2.Sub(p1), p3.Sub(p2)
 	r0, r1 := q1.Sub(q0), q2.Sub(q1)
@@ -42,7 +42,7 @@ func (b Bezier) secondDerivativeAt(t fl) Pos {
 		Add(r1.ScaleTo(6 * t))
 }
 
-func (b Bezier) curvatureAt(t fl) fl {
+func (b Bezier) curvatureAt(t Fl) Fl {
 	// k = (x'' y'  - y''x') / (x'^2 + y'^2)^(3/2)
 	p0, p1, p2, p3 := b.P0, b.P1, b.P2, b.P3
 	db := p1.Sub(p0).ScaleTo(3 * (1 - t) * (1 - t)).
@@ -58,7 +58,7 @@ func (b Bezier) curvatureAt(t fl) fl {
 }
 
 // De Casteljau's algorithm
-func (b Bezier) splitAt(t fl) (b1, b2 Bezier) {
+func (b Bezier) splitAt(t Fl) (b1, b2 Bezier) {
 	if t == 0 {
 		return Bezier{}, b
 	}
@@ -89,7 +89,7 @@ func (be Bezier) controlBox() Rect {
 	return re
 }
 
-func (b Bezier) splitBetween(t0, t1 fl) Bezier {
+func (b Bezier) splitBetween(t0, t1 Fl) Bezier {
 	// first split
 	_, right := b.splitAt(t0)
 	// convert t1 from [t0, 1] to [0,1]
@@ -102,17 +102,17 @@ func (b Bezier) toPoints() Shape {
 	const nbPoints = 40
 	var sh Shape
 	for i := 0; i < nbPoints; i++ {
-		sh = append(sh, b.pointAt(fl(i)/nbPoints))
+		sh = append(sh, b.pointAt(Fl(i)/nbPoints))
 	}
 	return sh
 }
 
-func (b Bezier) arcLength() fl {
+func (b Bezier) arcLength() Fl {
 	const nbPoints = 100
 	previousPos := b.P0
-	var length fl
+	var length Fl
 	for i := 1; i < nbPoints; i++ {
-		pos := b.pointAt(fl(i) / nbPoints)
+		pos := b.pointAt(Fl(i) / nbPoints)
 		length += distP(pos, previousPos)
 		previousPos = pos
 	}

@@ -12,10 +12,6 @@ import (
 var RequiredRunes = []rune("abcdefxy()123")
 
 const (
-	penWidth = 4
-)
-
-const (
 	EMWidth         float32 = 30.
 	EMHeight        float32 = 60.
 	EMBaselineRatio float32 = 0.66 // from the top

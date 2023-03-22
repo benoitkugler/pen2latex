@@ -8,20 +8,21 @@ import (
 
 // Insert finds the best place in [line] to insert [content],
 // and updates the line.
-func (line *Line) Insert(rec symbols.Record, db *symbols.Store) {
+func (line *Line) Insert(rec Record, db *symbols.Store) {
 	// find the correct scope
-	node, scope, insertPos := line.FindNode(rec.Shape().BoundingBox())
+	_, last := rec.split()
+	node, scope, insertPos := line.FindNode(last.BoundingBox())
 	fmt.Printf("enclosing box %v %v %p\n", scope, insertPos, node)
 
-	r, preferCompound := db.Lookup(rec, symbols.Rect{})
+	symbol := rec.InferSymbol()
+	r := db.Lookup(symbol, symbols.Rect{})
 
-	fmt.Println(preferCompound)
 	// if a compound symbol is matched, simply update the previous char
-	if preferCompound && line.cursor != nil {
-		*line.cursor = Grapheme{Char: r, Symbol: rec.Compound()}
+	if symbol.IsCompound() && line.cursor != nil {
+		*line.cursor = Grapheme{Char: r, Symbol: symbol}
 	} else { // find the place to insert the new symbol
 		// TODO:
-		regChar := newChar(r, symbols.Symbol{rec.Shape()})
+		regChar := newChar(r, symbol)
 		node.insertAt(regChar, insertPos)
 		line.cursor = regChar.Content()
 	}

@@ -1,30 +1,12 @@
 package symbols
 
-import (
-	"math"
-)
-
-// return the distance between the closest point between [u] and [v]
-// This NOT a measure of similarity
-func closestPointDistance(u, v Shape) fl {
-	best := fl(math.Inf(1))
-	for _, pu := range u {
-		for _, pv := range v {
-			if d := distP(pu, pv); d < best {
-				best = d
-			}
-		}
-	}
-	return best
-}
-
 // encode an affine trans, the composition
 // of a (preserving ratio) scaling and a translation
 //
 //	V = | s  0 | U  + | tx |
 //		| 0  s |	  | ty |
 type trans struct {
-	s fl
+	s Fl
 	t Pos
 }
 
@@ -41,7 +23,7 @@ func (b Bezier) scale(tr trans) Bezier {
 	return Bezier{tr.apply(b.P0), tr.apply(b.P1), tr.apply(b.P2), tr.apply(b.P3)}
 }
 
-func angleDiff(a1, a2 fl) fl {
+func angleDiff(a1, a2 Fl) Fl {
 	if a1 >= 0 {
 		if a2 < 0 {
 			return min(abs(a1-a2), abs(a1-a2-360))
@@ -55,14 +37,14 @@ func angleDiff(a1, a2 fl) fl {
 }
 
 // measure how U and V are similar
-func (U Bezier) distance(V Bezier) fl {
+func (U Bezier) distance(V Bezier) Fl {
 	var (
-		curvatureDiff     fl
-		distancePointDiff fl
-		derivativeDiff    fl
+		curvatureDiff     Fl
+		distancePointDiff Fl
+		derivativeDiff    Fl
 	)
 	for t := 1; t < 20; t++ {
-		t := fl(t) / 20
+		t := Fl(t) / 20
 
 		dd := U.pointAt(t).Sub(V.pointAt(t)).NormSquared()
 		cd := abs(U.curvatureAt(t) - V.curvatureAt(t))
@@ -80,7 +62,7 @@ func (U Bezier) distance(V Bezier) fl {
 	tV := angle(V.derivativeAt(0), V.derivativeAt(1))
 
 	if distanceAngle := angleDiff(tU, tV); distanceAngle > 120 {
-		return inf
+		return Inf
 	}
 
 	distancePointDiff /= 200

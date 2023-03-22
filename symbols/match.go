@@ -20,7 +20,7 @@ import (
 func (db *Store) Lookup(input Symbol, context Rect) rune {
 	var (
 		bestIndex    int = -1
-		bestDistance     = inf
+		bestDistance     = Inf
 	)
 
 	inputFootprint := input.Footprint()
@@ -51,7 +51,7 @@ func (sy Symbol) Footprint() SymbolFootprint { return newSymbolFootprint(sy) }
 // [Shape]
 type footprint struct {
 	Curves     []Bezier `json:"c"`
-	ArcLengths []fl     `json:"a"` // between 0 and 1, starts after the first part and ends at 1
+	ArcLengths []Fl     `json:"a"` // between 0 and 1, starts after the first part and ends at 1
 }
 
 func newFp(points Shape) footprint {
@@ -63,8 +63,8 @@ func newFp(points Shape) footprint {
 	curves := mergeSimilarCurves(fitCubicBeziers(points))
 
 	// compute arc lengths
-	arcLengths := make([]fl, len(curves))
-	var totalLength fl
+	arcLengths := make([]Fl, len(curves))
+	var totalLength Fl
 	for i, part := range curves {
 		L := part.arcLength()
 		totalLength += L
@@ -128,7 +128,7 @@ func startEnd(cu []Bezier) Rect {
 }
 
 // rescale U to V
-func distanceFootprints(U, V footprint) fl {
+func distanceFootprints(U, V footprint) Fl {
 	tr := mapFromTo(startEnd(U.Curves), startEnd(V.Curves))
 	U = U.scale(tr)
 
@@ -137,15 +137,15 @@ func distanceFootprints(U, V footprint) fl {
 
 // distanceFootprintNoScale returns the distance between U and V,
 // without rescaling step
-func distanceFootprintNoScale(U, V footprint) fl {
+func distanceFootprintNoScale(U, V footprint) Fl {
 	c1s, c2s, ok := adjustFootprints(U, V)
 	if !ok {
-		return inf
+		return Inf
 	}
 
 	var (
-		totalDist   fl
-		totalLength fl
+		totalDist   Fl
+		totalLength Fl
 	)
 	for i := range c1s {
 		c1 := c1s[i]
@@ -173,7 +173,7 @@ func adjustFootprints(U, V footprint) (c1s, c2s []Bezier, ok bool) {
 	if h < 0.1 { // handle linear sections
 		h = 1
 	}
-	tr := trans{s: 20 / sqrt(h*w)}
+	tr := trans{s: 20 / Sqrt(h*w)}
 	U = U.scale(tr)
 	V = V.scale(tr)
 
@@ -188,7 +188,7 @@ func adjustFootprints(U, V footprint) (c1s, c2s []Bezier, ok bool) {
 }
 
 // map curve index to offsets t in the curve ( between 0 and 1)
-type splitMap map[int][]fl
+type splitMap map[int][]Fl
 
 // establish a mapping from the two subdivisions :
 //   - close enough values are mapped
@@ -196,7 +196,7 @@ type splitMap map[int][]fl
 //
 // after applying the two list of split returned,
 // the footprints will have the same number of curves
-func mapBetweenArcLengths(a1, a2 []fl) (s1, s2 splitMap, ok bool) {
+func mapBetweenArcLengths(a1, a2 []Fl) (s1, s2 splitMap, ok bool) {
 	i1, i2 := 0, 0
 	s1, s2 = make(splitMap), make(splitMap)
 	for i1 < len(a1) && i2 < len(a2) {
@@ -208,7 +208,7 @@ func mapBetweenArcLengths(a1, a2 []fl) (s1, s2 splitMap, ok bool) {
 			i2++
 			continue
 		} else {
-			var prev1, prev2 fl
+			var prev1, prev2 Fl
 			if i1 != 0 {
 				prev1 = a1[i1-1]
 			}
@@ -258,7 +258,7 @@ func (fp footprint) split(splits splitMap) []Bezier {
 		} else {
 			sp = append(sp, 1)
 			for j, t := range sp {
-				tstart, tend := fl(0), t
+				tstart, tend := Fl(0), t
 				if j != 0 {
 					tstart = sp[j-1]
 				}
@@ -293,16 +293,16 @@ func (sf SymbolFootprint) controlBox() Rect {
 
 // distanceSymbols compare two footprints for whole symbols
 // is always return infinity if the symbols have not the same length
-func distanceSymbols(U, V SymbolFootprint) fl {
+func distanceSymbols(U, V SymbolFootprint) Fl {
 	if len(U) != len(V) {
-		return inf
+		return Inf
 	}
 
 	// rescale U to V, with the same transformation for
 	// each shapes
 	tr := mapFromTo(U.controlBox(), V.controlBox())
 
-	var totalDistance fl
+	var totalDistance Fl
 	for i := range U {
 		fpU, fpV := U[i], V[i]
 		fpU = fpU.scale(tr) // apply the scale

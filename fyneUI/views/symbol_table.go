@@ -5,10 +5,10 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
 	"github.com/benoitkugler/pen2latex/fyneUI/whiteboard"
-	"github.com/benoitkugler/pen2latex/symbols"
+	sy "github.com/benoitkugler/pen2latex/symbols"
 )
 
-func showSymbolTable(onDone func(map[rune]symbols.Symbol)) *fyne.Container {
+func showSymbolTable(onDone func(map[rune]sy.Symbol)) *fyne.Container {
 	st := newSymbolTable(onDone)
 	return container.NewVBox(st.title, container.NewCenter(st.wb), st.nextButton, st.doneButton)
 }
@@ -19,11 +19,11 @@ type symbolTable struct {
 	nextButton *widget.Button
 	doneButton *widget.Button
 
-	mapping      map[rune]symbols.Symbol
+	mapping      map[rune]sy.Symbol
 	currentIndex int
 }
 
-func newSymbolTable(onDone func(map[rune]symbols.Symbol)) *symbolTable {
+func newSymbolTable(onDone func(map[rune]sy.Symbol)) *symbolTable {
 	st := symbolTable{
 		title:      widget.NewLabel(""),
 		wb:         whiteboard.NewWhiteboard(),
@@ -31,7 +31,7 @@ func newSymbolTable(onDone func(map[rune]symbols.Symbol)) *symbolTable {
 		doneButton: widget.NewButton("Terminer", nil),
 
 		currentIndex: -1,
-		mapping:      make(map[rune]symbols.Symbol),
+		mapping:      make(map[rune]sy.Symbol),
 	}
 	st.nextButton.OnTapped = func() {
 		st.saveRune()
@@ -47,8 +47,8 @@ func newSymbolTable(onDone func(map[rune]symbols.Symbol)) *symbolTable {
 }
 
 func (st *symbolTable) drawShape() {
-	rec := st.wb.Recorder.Current()
-	st.wb.Content = []symbols.Symbol{rec.Compound()}
+	rec := st.wb.Recorder.Record
+	st.wb.Content = []sy.Symbol{sy.Symbol(rec)}
 
 	// atoms := rec.Compound().SegmentToAtoms()
 	// fmt.Println(len(atoms), atoms)
@@ -57,8 +57,8 @@ func (st *symbolTable) drawShape() {
 }
 
 func (st *symbolTable) saveRune() {
-	r := symbols.RequiredRunes[st.currentIndex]
-	st.mapping[r] = st.wb.Recorder.Current().Compound()
+	r := sy.RequiredRunes[st.currentIndex]
+	st.mapping[r] = sy.Symbol(st.wb.Recorder.Record)
 	st.wb.Recorder.Reset()
 	st.wb.Content = nil
 	st.wb.Refresh()
@@ -66,11 +66,11 @@ func (st *symbolTable) saveRune() {
 
 func (st *symbolTable) showNextRune() {
 	st.currentIndex += 1
-	if st.currentIndex >= len(symbols.RequiredRunes) {
+	if st.currentIndex >= len(sy.RequiredRunes) {
 		st.title.SetText("Terminé.")
 		st.nextButton.Disable()
 		st.doneButton.Enable()
 		return
 	}
-	st.title.SetText("Entrer le caractère " + string(symbols.RequiredRunes[st.currentIndex]))
+	st.title.SetText("Entrer le caractère " + string(sy.RequiredRunes[st.currentIndex]))
 }

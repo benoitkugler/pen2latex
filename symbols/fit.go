@@ -17,10 +17,10 @@ func (s segment) asBezier() Bezier {
 }
 
 // use a least square linear regression
-func fitSegment(points []Pos) (segment, fl) {
+func fitSegment(points []Pos) (segment, Fl) {
 	// find the line ...
-	var sx, sy, sxy, sx2 fl
-	N := fl(len(points)) - 2
+	var sx, sy, sxy, sx2 Fl
+	N := Fl(len(points)) - 2
 	for _, p := range points[1 : len(points)-1] {
 		x, y := (p.X), (p.Y)
 		sx += x
@@ -44,16 +44,16 @@ func fitSegment(points []Pos) (segment, fl) {
 		m := (sxy - sx*sy) / denom
 		b := (sy - m*sx)
 		// vector director
-		u = Pos{1, fl(m)}
-		A = Pos{0, fl(b)}
+		u = Pos{1, Fl(m)}
+		A = Pos{0, Fl(b)}
 	}
 	nu := u.NormSquared()
 
 	// .. then find start and end
-	minT, maxT := inf, -inf
+	minT, maxT := Inf, -Inf
 	var (
 		start, end Pos
-		err        fl
+		err        Fl
 	)
 	for _, p := range points {
 		t := dotProduct(u, p.Sub(A)) / nu
@@ -81,7 +81,7 @@ func fitSegment(points []Pos) (segment, fl) {
 // to the given points, returning the average quadratic error computed by [bezierError]
 //
 // if panics if len(d) < 2
-func fitCubicBezier(points []Pos) (Bezier, fl) {
+func fitCubicBezier(points []Pos) (Bezier, Fl) {
 	const maxIterations = 50
 
 	pathLengths := pathLengthIndices(points)
@@ -91,7 +91,7 @@ func fitCubicBezier(points []Pos) (Bezier, fl) {
 	bezier.P1 = start.ScaleTo(2).Add(end).ScaleTo(1. / 3.)
 	bezier.P2 = start.Add(end.ScaleTo(2)).ScaleTo(1. / 3.)
 
-	errValue := inf
+	errValue := Inf
 	for i := 0; i < maxIterations; i++ {
 		grad := bezierEnergyGradient(points, pathLengths, bezier)
 		const step = -0.1
@@ -113,7 +113,7 @@ func fitCubicBezier(points []Pos) (Bezier, fl) {
 
 // return the derivatives of B(t) with respect to
 // control points P1 and P2
-func controlDerivatives(t fl) (dx1, dy1, dx2, dy2 Pos) {
+func controlDerivatives(t Fl) (dx1, dy1, dx2, dy2 Pos) {
 	s := 1 - t
 	b1 := 3 * s * s * t
 	dx1 = Pos{b1, 0}
@@ -126,7 +126,7 @@ func controlDerivatives(t fl) (dx1, dy1, dx2, dy2 Pos) {
 
 // bezierEnergyGradient returns the gradient of the distance between the points
 // and the [bezier] curve, with respect to the control points
-func bezierEnergyGradient(points []Pos, pathLengths []fl, bezier Bezier) (out [4]fl) {
+func bezierEnergyGradient(points []Pos, pathLengths []Fl, bezier Bezier) (out [4]Fl) {
 	for i, ti := range pathLengths {
 		bti := bezier.pointAt(ti)
 		ui := bti.Sub(points[i])
@@ -214,7 +214,7 @@ func fitOrSplitCubicBeziers(points []Pos, tHat1, tHat2 Pos) []Bezier {
 }
 
 // u is the current parametrization of the points
-func inferBezier(d []Pos, u []fl, tHat1, tHat2 Pos) Bezier {
+func inferBezier(d []Pos, u []Fl, tHat1, tHat2 Pos) Bezier {
 	first, last := 0, len(d)-1
 
 	// Compute A, rhs for eqn
@@ -230,8 +230,8 @@ func inferBezier(d []Pos, u []fl, tHat1, tHat2 Pos) Bezier {
 
 	// create the C and X matrices
 	var (
-		C [2][2]fl
-		X [2]fl
+		C [2][2]Fl
+		X [2]Fl
 	)
 
 	for i := range d {
@@ -254,7 +254,7 @@ func inferBezier(d []Pos, u []fl, tHat1, tHat2 Pos) Bezier {
 	det_X_C1 := X[0]*C[1][1] - X[1]*C[0][1]
 
 	// finally, derive alpha values
-	var alpha_l, alpha_r fl
+	var alpha_l, alpha_r Fl
 	if det_C0_C1 != 0 {
 		alpha_l = det_X_C1 / det_C0_C1
 	}
@@ -292,8 +292,8 @@ func inferBezier(d []Pos, u []fl, tHat1, tHat2 Pos) Bezier {
 
 // Given set of points and their parameterization, try to find
 // a better parameterization.
-func reparameterize(d []Pos, u []fl, bezCurve Bezier) []fl {
-	uPrime := make([]fl, len(d)) //  new parameter values
+func reparameterize(d []Pos, u []Fl, bezCurve Bezier) []Fl {
+	uPrime := make([]Fl, len(d)) //  new parameter values
 	for i := range d {
 		uPrime[i] = newtonRaphsonRootStep(bezCurve, d[i], u[i])
 	}
@@ -302,7 +302,7 @@ func reparameterize(d []Pos, u []fl, bezCurve Bezier) []fl {
 
 // newtonRaphsonRootStep :
 // Use Newton-Raphson iteration to find better root.
-func newtonRaphsonRootStep(Q Bezier, P Pos, u fl) fl {
+func newtonRaphsonRootStep(Q Bezier, P Pos, u Fl) Fl {
 	// Compute Q(u)
 	Q_u := Q.pointAt(u)
 
@@ -393,8 +393,8 @@ func removeSideArtifacts(points []Pos) []Pos {
 }
 
 // return the max distance
-func diameter(points []Pos) fl {
-	var maxDistance fl
+func diameter(points []Pos) Fl {
+	var maxDistance Fl
 	for _, p := range points {
 		for _, q := range points {
 			if d := p.Sub(q).NormSquared(); d > maxDistance {
@@ -402,7 +402,7 @@ func diameter(points []Pos) fl {
 			}
 		}
 	}
-	return sqrt(maxDistance)
+	return Sqrt(maxDistance)
 }
 
 // computeStartTangent, ComputeRightTangent, ComputeCenterTangent :
@@ -502,9 +502,9 @@ func mergeSimilarCurves(curves []Bezier) (out []Bezier) {
 }
 
 // return t_i : coefficients in [0, 1], computed from the path length
-func pathLengthIndices(points []Pos) []fl {
-	out := make([]fl, len(points))
-	var totalLength fl
+func pathLengthIndices(points []Pos) []Fl {
+	out := make([]Fl, len(points))
+	var totalLength Fl
 	for i := range points {
 		if i == 0 {
 			continue
@@ -522,9 +522,9 @@ func pathLengthIndices(points []Pos) []fl {
 // bezierError finds the maximum squared distance of digitized points
 // to the fitted curve, given a parametrization
 // it also returns the index of the worst point
-func bezierError(d []Pos, bezCurve Bezier, u []fl) (fl, int) {
+func bezierError(d []Pos, bezCurve Bezier, u []Fl) (Fl, int) {
 	var (
-		maxDist  fl
+		maxDist  Fl
 		maxIndex int
 	)
 	for i := range d {

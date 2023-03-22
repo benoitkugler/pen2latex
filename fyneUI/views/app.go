@@ -1,6 +1,7 @@
 package views
 
 import (
+	"log"
 	"os"
 	"path/filepath"
 
@@ -19,7 +20,11 @@ func Home() *fyne.Container {
 
 	main := container.NewVBox()
 
-	database, _ := symbols.NewStoreFromDisk(storePath) // TODO:
+	database, err := symbols.NewStoreFromDisk(storePath) // TODO:
+	if err != nil {
+		log.Println(err)
+		database = symbols.NewStore(nil)
+	}
 	var showButtons func()
 
 	showButtons = func() {
