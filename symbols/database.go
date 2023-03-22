@@ -9,13 +9,7 @@ import (
 
 // var RequiredRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
 
-var RequiredRunes = []rune("abcdefxy()123")
-
-const (
-	EMWidth         float32 = 30.
-	EMHeight        float32 = 60.
-	EMBaselineRatio float32 = 0.66 // from the top
-)
+var RequiredRunes = []rune("abcdefxy()123_\u03A3")
 
 // Store stores the shapes of
 // runes, as setup by the user,
@@ -80,3 +74,7 @@ type mapEntry struct {
 	Footprint SymbolFootprint `json:"s"`
 	R         rune            `json:"r"`
 }
+
+func (st Store) MarshalJSON() ([]byte, error) { return json.Marshal(st.entries) }
+
+func (st *Store) UnmarshalJSON(data []byte) error { return json.Unmarshal(data, &st.entries) }

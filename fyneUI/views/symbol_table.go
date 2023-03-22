@@ -50,10 +50,14 @@ func (st *symbolTable) drawShape() {
 	rec := st.wb.Recorder.Record
 	st.wb.Content = []sy.Symbol{sy.Symbol(rec)}
 
-	// atoms := rec.Compound().SegmentToAtoms()
-	// fmt.Println(len(atoms), atoms)
-	// imag := renderAtoms(atoms, rec.Compound().Union().BoundingBox())
-	// savePng(imag)
+	fp := sy.Symbol(rec).Footprint()
+	var allCurves []sy.Bezier
+
+	for _, sh := range fp {
+		allCurves = append(allCurves, sh.Curves...)
+	}
+	imag := renderAtoms(allCurves, sy.Symbol(rec).Union().BoundingBox())
+	savePng(imag)
 }
 
 func (st *symbolTable) saveRune() {

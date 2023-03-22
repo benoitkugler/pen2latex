@@ -42,12 +42,12 @@ func (w *recorderRenderer) Destroy() {}
 // This should never call Refresh.
 func (w *recorderRenderer) Layout(size fyne.Size) {
 	w.rec.Resize(size)
-	w.baseline.Position1 = fyne.NewPos(0, size.Height*sym.EMBaselineRatio)
-	w.baseline.Position2 = fyne.NewPos(size.Width, size.Height*sym.EMBaselineRatio)
+	w.baseline.Position1 = fyne.NewPos(0, size.Height*layout.EMBaselineRatio)
+	w.baseline.Position2 = fyne.NewPos(size.Width, size.Height*layout.EMBaselineRatio)
 }
 
 func (w *recorderRenderer) MinSize() fyne.Size {
-	return fyne.NewSize(sym.EMWidth, 5*sym.EMHeight)
+	return fyne.NewSize(layout.EMWidth, 5*layout.EMHeight)
 }
 
 // Objects returns all objects that should be drawn.

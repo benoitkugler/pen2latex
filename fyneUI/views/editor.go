@@ -17,50 +17,50 @@ import (
 )
 
 func showEditor(db *sy.Store) *fyne.Container {
-	// ed := newEditor(db)
+	ed := newEditor(db)
 
-	matched := widget.NewLabel("Caractère reconnu")
-	// data := canvas.NewImageFromImage(image.NewGray(image.Rect(0, -180, 100, 180)))
-	// data.FillMode = canvas.ImageFillOriginal
+	// matched := widget.NewLabel("Caractère reconnu")
+	// // data := canvas.NewImageFromImage(image.NewGray(image.Rect(0, -180, 100, 180)))
+	// // data.FillMode = canvas.ImageFillOriginal
 
-	// shapeImg := canvas.NewImageFromImage(image.NewNRGBA(image.Rect(0, 0, 200, 100)))
-	// shapeImg.FillMode = canvas.ImageFillOriginal
-	// shapeImg := canvas.NewRasterFromImage(image.NewAlpha(image.Rect(0, 0, 0, 0)))
-	rec := whiteboard.NewRecorder()
+	// // shapeImg := canvas.NewImageFromImage(image.NewNRGBA(image.Rect(0, 0, 200, 100)))
+	// // shapeImg.FillMode = canvas.ImageFillOriginal
+	// // shapeImg := canvas.NewRasterFromImage(image.NewAlpha(image.Rect(0, 0, 0, 0)))
+	// rec := whiteboard.NewRecorder()
 
-	reset := widget.NewButton("Reset", func() {
-		rec.Content = nil
-		rec.Refresh()
-		rec.Recorder.Reset()
-		matched.SetText("Caractère reconnu")
-	})
+	// reset := widget.NewButton("Reset", func() {
+	// 	rec.Content = nil
+	// 	rec.Refresh()
+	// 	rec.Recorder.Reset()
+	// 	matched.SetText("Caractère reconnu")
+	// })
 
-	rec.OnEndShape = func() {
-		// img := rec.Recorder.Current().Shape().AngularGraph()
-		// data.Image = img
-		// data.Refresh()
+	// rec.OnEndShape = func() {
+	// 	// img := rec.Recorder.Current().Shape().AngularGraph()
+	// 	// data.Image = img
+	// 	// data.Refresh()
 
-		// si := rec.Recorder.Current().Shape().AngleClustersGraph()
-		record := rec.Recorder.Record
-		fmt.Println(record)
-		rec.Content = []sy.Symbol{sy.Symbol(record)}
-		rec.Refresh()
+	// 	// si := rec.Recorder.Current().Shape().AngleClustersGraph()
+	// 	record := rec.Recorder.Record
+	// 	fmt.Println(record)
+	// 	rec.Content = []sy.Symbol{sy.Symbol(record)}
+	// 	rec.Refresh()
 
-		fmt.Println(record.InferSymbol().IsCompound())
-		fmt.Println("Symbol:")
-		fmt.Println(record)
-		// segments := symbols.Symbol{shape}.SegmentToAtoms()
-		// fmt.Println("K", len(segments), segments)
-		// imag := renderAtoms(segments, shape.BoundingBox())
-		// savePng(imag)
-		// *shapeImg = *canvas.NewRasterFromImage(imag)
-		// shapeImg.Resize(fyne.Size{Width: float32(imag.Bounds().Dx()), Height: float32(imag.Bounds().Dy())})
-		// shapeImg.Refresh()
+	// 	fmt.Println(record.InferSymbol().IsCompound())
+	// 	fmt.Println("Symbol:")
+	// 	fmt.Println(record)
+	// 	// segments := symbols.Symbol{shape}.SegmentToAtoms()
+	// 	// fmt.Println("K", len(segments), segments)
+	// 	// imag := renderAtoms(segments, shape.BoundingBox())
+	// 	// savePng(imag)
+	// 	// *shapeImg = *canvas.NewRasterFromImage(imag)
+	// 	// shapeImg.Resize(fyne.Size{Width: float32(imag.Bounds().Dx()), Height: float32(imag.Bounds().Dy())})
+	// 	// shapeImg.Refresh()
 
-		r := db.Lookup(record.InferSymbol(), sy.Rect{})
-		matched.SetText(fmt.Sprintf("Caractère: %s", string(r)))
-	}
-	return container.NewVBox(rec, reset, matched)
+	// 	r := db.Lookup(record.InferSymbol(), sy.Rect{})
+	// 	matched.SetText(fmt.Sprintf("Caractère: %s", string(r)))
+	// }
+	return container.NewVBox(ed.wb, ed.recognized, ed.resetButton)
 }
 
 type editor struct {
@@ -80,18 +80,24 @@ func newEditor(db *sy.Store) *editor {
 		resetButton: widget.NewButton("Effacer", nil),
 		db:          db,
 	}
-	ed.wb.OnEndShape = ed.tryMatchShape
+	ed.wb.OnEndShape = ed.onEndShape
 	ed.wb.OnCursorMove = ed.showScope
 	ed.resetButton.OnTapped = ed.clear
 	return ed
 }
 
-func (ed *editor) tryMatchShape() {
+func (ed *editor) onEndShape() {
 	rec := ed.wb.Recorder.Record
 	if len(rec) == 0 {
 		return
 	}
-	ed.line.Insert(rec, ed.db)
+
+	fmt.Println(rec)
+
+	isCompound := ed.line.Insert(rec, ed.db)
+	if !isCompound { // drop the last symbols
+		ed.wb.Recorder.DropButLast()
+	}
 	ed.wb.Content = ed.line.Symbols()
 	ed.wb.Scopes = ed.line.Scopes()
 	ed.recognized.SetText(ed.line.LaTeX())

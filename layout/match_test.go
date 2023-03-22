@@ -1,9 +1,11 @@
 package layout
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/benoitkugler/pen2latex/symbols"
+	sy "github.com/benoitkugler/pen2latex/symbols"
 )
 
 func rect(xLeft, xRight, yTop, yBottom float32) symbols.Rect {
@@ -37,4 +39,12 @@ func Test_isRectInAreas(t *testing.T) {
 			t.Errorf("isRectInAreas() = %v, want %v", got, tt.want)
 		}
 	}
+}
+
+func TestInsertIndex(t *testing.T) {
+	glyph := sy.Rect{UL: sy.Pos{X: 75.0, Y: 88.3}, LR: sy.Pos{X: 96.0, Y: 140.3}}
+	candidates := []sy.Rect{
+		{UL: sy.Pos{X: 67.0, Y: 85.5}, LR: sy.Pos{X: 114.1, Y: 133.5}},
+	}
+	fmt.Println(indexInsertRectBetweenArea(glyph, candidates))
 }

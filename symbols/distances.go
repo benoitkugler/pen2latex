@@ -61,8 +61,9 @@ func (U Bezier) distance(V Bezier) Fl {
 	tU := angle(U.derivativeAt(0), U.derivativeAt(1))
 	tV := angle(V.derivativeAt(0), V.derivativeAt(1))
 
+	var penalizeHook Fl = 1
 	if distanceAngle := angleDiff(tU, tV); distanceAngle > 120 {
-		return Inf
+		penalizeHook = 1.5
 	}
 
 	distancePointDiff /= 200
@@ -72,5 +73,5 @@ func (U Bezier) distance(V Bezier) Fl {
 		0.05*(U.P1.Sub(V.P1).NormSquared()+U.P2.Sub(V.P2).NormSquared())
 	distanceControls /= 16
 
-	return derivativeDiff*10 + curvatureDiff + distancePointDiff + distanceControls
+	return (derivativeDiff*10 + curvatureDiff + distancePointDiff + distanceControls) * penalizeHook
 }

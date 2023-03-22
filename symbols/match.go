@@ -47,16 +47,16 @@ func (db *Store) Lookup(input Symbol, context Rect) rune {
 // Footprint builds the footprint of the symbol
 func (sy Symbol) Footprint() SymbolFootprint { return newSymbolFootprint(sy) }
 
-// footprint stores a simplified representation of one
+// ShapeFP stores a simplified representation of one
 // [Shape]
-type footprint struct {
+type ShapeFP struct {
 	Curves     []Bezier `json:"c"`
 	ArcLengths []Fl     `json:"a"` // between 0 and 1, starts after the first part and ends at 1
 }
 
-func newFp(points Shape) footprint {
+func newFp(points Shape) ShapeFP {
 	if len(points) < 4 {
-		return footprint{}
+		return ShapeFP{}
 	}
 
 	// fit and regularize
@@ -76,10 +76,10 @@ func newFp(points Shape) footprint {
 		arcLengths[i] /= totalLength
 	}
 
-	return footprint{Curves: curves, ArcLengths: arcLengths}
+	return ShapeFP{Curves: curves, ArcLengths: arcLengths}
 }
 
-func (fp footprint) controlBox() Rect {
+func (fp ShapeFP) controlBox() Rect {
 	re := fp.Curves[0].controlBox()
 	for _, cu := range fp.Curves {
 		re.Union(cu.controlBox())
@@ -87,7 +87,7 @@ func (fp footprint) controlBox() Rect {
 	return re
 }
 
-func (fp footprint) String() string {
+func (fp ShapeFP) String() string {
 	curves := make([]string, len(fp.Curves))
 	for i, c := range fp.Curves {
 		curves[i] = c.String()
@@ -111,8 +111,8 @@ func mapFromTo(U, V Rect) trans {
 	return trans{s, t}
 }
 
-func (fp footprint) scale(tr trans) footprint {
-	out := footprint{
+func (fp ShapeFP) scale(tr trans) ShapeFP {
+	out := ShapeFP{
 		Curves: make([]Bezier, len(fp.Curves)),
 		// note that tr preserve lengths
 		ArcLengths: fp.ArcLengths,
@@ -128,7 +128,7 @@ func startEnd(cu []Bezier) Rect {
 }
 
 // rescale U to V
-func distanceFootprints(U, V footprint) Fl {
+func distanceFootprints(U, V ShapeFP) Fl {
 	tr := mapFromTo(startEnd(U.Curves), startEnd(V.Curves))
 	U = U.scale(tr)
 
@@ -137,7 +137,7 @@ func distanceFootprints(U, V footprint) Fl {
 
 // distanceFootprintNoScale returns the distance between U and V,
 // without rescaling step
-func distanceFootprintNoScale(U, V footprint) Fl {
+func distanceFootprintNoScale(U, V ShapeFP) Fl {
 	c1s, c2s, ok := adjustFootprints(U, V)
 	if !ok {
 		return Inf
@@ -162,7 +162,7 @@ func distanceFootprintNoScale(U, V footprint) Fl {
 }
 
 // adjustFootprints assume U has been scaled to match V
-func adjustFootprints(U, V footprint) (c1s, c2s []Bezier, ok bool) {
+func adjustFootprints(U, V ShapeFP) (c1s, c2s []Bezier, ok bool) {
 	// rescale both U and V to a reference size so that error values are
 	// comparable across the database
 	cbox := U.controlBox()
@@ -246,7 +246,7 @@ func mapBetweenArcLengths(a1, a2 []Fl) (s1, s2 splitMap, ok bool) {
 	return s1, s2, true
 }
 
-func (fp footprint) split(splits splitMap) []Bezier {
+func (fp ShapeFP) split(splits splitMap) []Bezier {
 	if len(splits) == 0 {
 		return fp.Curves
 	}
@@ -273,7 +273,7 @@ func (fp footprint) split(splits splitMap) []Bezier {
 
 // SymbolFootprint stores a simplfied representation
 // of a [Symbol].
-type SymbolFootprint []footprint
+type SymbolFootprint []ShapeFP
 
 func newSymbolFootprint(sy Symbol) SymbolFootprint {
 	out := make(SymbolFootprint, len(sy))

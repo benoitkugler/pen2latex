@@ -337,7 +337,7 @@ var shapes = []struct {
 
 func TestShapeDistance(t *testing.T) {
 	var (
-		footprints []footprint
+		footprints []ShapeFP
 		groups     []int // index of the group the footprint belongs to
 	)
 	for i, g := range shapes {
@@ -581,3 +581,41 @@ func TestPrintSymbols(t *testing.T) {
 		}
 	}
 }
+
+func (db Store) get(r rune) SymbolFootprint {
+	for _, v := range db.entries {
+		if r == v.R {
+			return v.Footprint
+		}
+	}
+	return nil
+}
+
+// func TestMatchDB(t *testing.T) {
+// 	dbPath, _ := os.UserHomeDir()
+// 	dbPath = filepath.Join(dbPath, "pen2latex.store.json")
+// 	db, err := NewStoreFromDisk(dbPath)
+// 	if err != nil {
+// 		t.Skipf("no user DB : %s", err)
+// 	}
+
+// 	y := Symbol{
+// 		{{X: 114.0, Y: 178.3}, {X: 113.0, Y: 178.3}, {X: 113.0, Y: 179.3}, {X: 113.0, Y: 181.3}, {X: 113.0, Y: 182.3}, {X: 114.0, Y: 184.3}, {X: 114.0, Y: 187.3}, {X: 115.0, Y: 189.3}, {X: 116.0, Y: 191.3}, {X: 117.0, Y: 193.3}, {X: 118.0, Y: 194.3}, {X: 119.0, Y: 196.3}, {X: 120.0, Y: 196.3}, {X: 121.0, Y: 196.3}, {X: 121.0, Y: 195.3}, {X: 121.0, Y: 194.3}, {X: 122.0, Y: 193.3}, {X: 122.0, Y: 191.3}, {X: 122.0, Y: 189.3}, {X: 122.0, Y: 187.3}, {X: 122.0, Y: 186.3}, {X: 122.0, Y: 185.3}, {X: 122.0, Y: 184.3}, {X: 122.0, Y: 186.3}, {X: 123.0, Y: 188.3}, {X: 124.0, Y: 191.3}, {X: 125.0, Y: 194.3}, {X: 127.0, Y: 198.3}, {X: 128.0, Y: 202.3}, {X: 129.0, Y: 205.3}, {X: 130.0, Y: 209.3}, {X: 130.0, Y: 212.3}, {X: 131.0, Y: 215.3}, {X: 131.0, Y: 218.3}, {X: 131.0, Y: 220.3}, {X: 130.0, Y: 221.3}, {X: 129.0, Y: 222.3}, {X: 128.0, Y: 222.3}, {X: 127.0, Y: 223.3}, {X: 125.0, Y: 223.3}, {X: 123.0, Y: 223.3}, {X: 121.0, Y: 223.3}, {X: 119.0, Y: 222.3}, {X: 116.0, Y: 222.3}, {X: 114.0, Y: 221.3}, {X: 112.0, Y: 221.3}, {X: 111.0, Y: 220.3}, {X: 110.0, Y: 220.3}, {X: 109.0, Y: 220.3}},
+// 	}
+// 	refy := db.get('y')
+// 	if len(refy) == 0 {
+// 		t.Skip("no symbol for rune 'r'")
+// 	}
+// 	fp := y.Footprint()
+// 	printShape(t, generateFootprint(refy[0].Curves), "y_ref")
+// 	printShape(t, generateFootprint(fp[0].Curves), "y")
+// 	fmt.Println(distanceSymbols(fp, refy))
+
+// 	tu.Assert(t, distanceSymbols(fp, refy) < Inf)
+
+// 	s2 := Symbol{
+// 		{{X: 69.0, Y: 132.3}, {X: 69.0, Y: 131.3}, {X: 70.0, Y: 130.3}, {X: 71.0, Y: 129.3}, {X: 73.0, Y: 128.3}, {X: 74.0, Y: 127.3}, {X: 75.0, Y: 126.3}, {X: 76.0, Y: 126.3}, {X: 77.0, Y: 126.3}, {X: 77.0, Y: 127.3}, {X: 77.0, Y: 128.3}, {X: 77.0, Y: 129.3}, {X: 76.0, Y: 131.3}, {X: 75.0, Y: 133.3}, {X: 74.0, Y: 135.3}, {X: 72.0, Y: 137.3}, {X: 71.0, Y: 139.3}, {X: 69.0, Y: 140.3}, {X: 68.0, Y: 142.3}, {X: 66.0, Y: 143.3}, {X: 64.0, Y: 144.3}, {X: 63.0, Y: 145.3}, {X: 62.0, Y: 145.3}, {X: 61.0, Y: 146.3}, {X: 60.0, Y: 146.3}, {X: 60.0, Y: 147.3}, {X: 61.0, Y: 147.3}, {X: 62.0, Y: 148.3}, {X: 63.0, Y: 149.3}, {X: 65.0, Y: 150.3}, {X: 68.0, Y: 151.3}, {X: 70.0, Y: 151.3}, {X: 74.0, Y: 152.3}, {X: 77.0, Y: 152.3}, {X: 80.0, Y: 152.3}, {X: 83.0, Y: 152.3}, {X: 85.0, Y: 152.3}, {X: 87.0, Y: 152.3}, {X: 89.0, Y: 152.3}, {X: 90.0, Y: 151.3}, {X: 90.0, Y: 150.3}, {X: 89.0, Y: 149.3}},
+// 	}
+// 	ref2 := db.get('2')
+// 	fmt.Println(distanceSymbols(s2.Footprint(), ref2))
+// }

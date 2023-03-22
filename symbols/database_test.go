@@ -20,6 +20,7 @@ func TestSerialize(t *testing.T) {
 	err := db.Serialize(path)
 	tu.AssertNoErr(t, err)
 
-	_, err = NewStoreFromDisk(path)
+	db2, err := NewStoreFromDisk(path)
 	tu.AssertNoErr(t, err)
+	tu.AssertEqual(t, len(db2.entries), len(db.entries))
 }

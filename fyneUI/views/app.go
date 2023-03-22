@@ -35,6 +35,7 @@ func Home() *fyne.Container {
 				main.Add(showSymbolTable(func(m map[rune]symbols.Symbol) {
 					database = symbols.NewStore(m)
 					err = database.Serialize(storePath)
+					log.Println("saved in", storePath)
 					if err != nil {
 						panic(err) // TODO:
 					}

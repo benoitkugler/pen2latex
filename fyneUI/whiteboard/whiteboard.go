@@ -44,12 +44,12 @@ func (w *whiteboardRenderer) Destroy() {}
 // This should never call Refresh.
 func (w *whiteboardRenderer) Layout(size fyne.Size) {
 	w.rec.Resize(size)
-	w.baseline.Position1 = fyne.NewPos(0, size.Height*sym.EMBaselineRatio)
-	w.baseline.Position2 = fyne.NewPos(size.Width, size.Height*sym.EMBaselineRatio)
+	w.baseline.Position1 = fyne.NewPos(0, size.Height*layout.EMBaselineRatio)
+	w.baseline.Position2 = fyne.NewPos(size.Width, size.Height*layout.EMBaselineRatio)
 }
 
 func (w *whiteboardRenderer) MinSize() fyne.Size {
-	return fyne.NewSize(2*sym.EMWidth, 3*sym.EMHeight)
+	return fyne.NewSize(2*layout.EMWidth, 3*layout.EMHeight)
 }
 
 // Objects returns all objects that should be drawn.

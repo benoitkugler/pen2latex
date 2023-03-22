@@ -71,6 +71,13 @@ type Recorder struct {
 	inShape      bool
 }
 
+func (rec *Recorder) DropButLast() {
+	if len(rec.Record) == 0 {
+		return
+	}
+	rec.Record = Record{rec.Record[len(rec.Record)-1]}
+}
+
 // Reset clears the current state of the `Recorder`
 func (rec *Recorder) Reset() {
 	rec.inShape = false

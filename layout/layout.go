@@ -10,16 +10,22 @@ import (
 	sy "github.com/benoitkugler/pen2latex/symbols"
 )
 
+const (
+	EMWidth         float32 = 30.
+	EMHeight        float32 = 60.
+	EMBaselineRatio float32 = 0.66 // from the top
+)
+
 // Scope is an area in the editor where potential new
-// symbols may be drawn. Its area is never empty :
+// symbols may be drawn. The area is never empty :
 // it contains already written input or a blank area
 // if the input is empty.
 type Scope = sy.Rect
 
 // Grapheme is one symbol input, with its resolved Unicode value
 type Grapheme struct {
-	Char   rune // the resolved rune for the symbol
 	Symbol sy.Symbol
+	Char   rune // the resolved rune for the symbol
 }
 
 func (nc *Grapheme) Content() *Grapheme { return nc }
@@ -51,6 +57,7 @@ type Node struct {
 	Blocks []block
 }
 
+// return the concatenation of the latex for each block
 func (n *Node) latex() string {
 	chunks := make([]string, len(n.Blocks))
 	for i, b := range n.Blocks {
@@ -67,22 +74,30 @@ func (n *Node) insertAt(bl block, index int) {
 }
 
 // returns EmptyRect if n is empty
-func (n *Node) extendedBox() sy.Rect {
-	bbox := sy.EmptyRect()
+func (n *Node) extendedBox() (withScopes, withoutScopes sy.Rect) {
+	withScopes = sy.EmptyRect()
+	withoutScopes = sy.EmptyRect()
 	for _, char := range n.Blocks {
-		bbox.Union(extendedBox(char))
+		withS, withoutS := extendedBox(char)
+		withScopes.Union(withS)
+		withScopes.Union(withoutS)
 	}
-	return bbox
+	return
 }
 
 // extendedBox return the extended bounding box,
-// including the glyph and its children
-func extendedBox(ch block) sy.Rect {
+// including the glyph and its children, with and without their SCOPES
+func extendedBox(ch block) (withScopes, withoutScopes sy.Rect) {
 	own := ch.Content().Symbol.Union().BoundingBox()
-	for _, child := range ch.Scopes() {
-		own.Union(child)
+	withScopes = own
+	withoutScopes = own
+	scopes := ch.Scopes()
+	for i, child := range ch.Children() {
+		_, withoutS := child.extendedBox()
+		withScopes.Union(scopes[i])
+		withoutScopes.Union(withoutS)
 	}
-	return own
+	return
 }
 
 // Line represents one line of text, wrote
@@ -149,7 +164,7 @@ func (r *regularChar) Children() []*Node { return []*Node{r.indice, r.exponent} 
 
 // return a rect such that its baseline (top + height*EMBaselineRatio) is at baseline
 func rectForBaseline(x, width, height, baseline float32) sy.Rect {
-	top := baseline - height*sy.EMBaselineRatio
+	top := baseline - height*EMBaselineRatio
 	return sy.Rect{
 		UL: sy.Pos{X: x, Y: top},
 		LR: sy.Pos{X: x + width, Y: top + height},
@@ -164,23 +179,23 @@ func (r *regularChar) Scopes() []Scope {
 	xLeft := bb.LR.X - 0.1*bb.Width()
 
 	// the height is fixed to a proportion of the EM square
-	height := sy.EMHeight * 0.4
+	height := EMHeight * 0.4
 
 	// enlarge by the current exponent bbox width
-	exponentWith := sy.EMWidth
-	if expBB := r.exponent.extendedBox(); !expBB.IsEmpty() {
+	exponentWith := EMWidth
+	if expBB, _ := r.exponent.extendedBox(); !expBB.IsEmpty() {
 		exponentWith += bb.Width()
 	}
 	// adjust the baseline of the exponent scope to the height of the char
 	exponent := rectForBaseline(xLeft, exponentWith, height, bb.UL.Y)
 
-	// enlarge by the current exponent bbox width
-	indiceWith := sy.EMWidth
-	if expBB := r.indice.extendedBox(); !expBB.IsEmpty() {
+	// enlarge by the current indice bbox width
+	indiceWith := EMWidth
+	if expBB, _ := r.indice.extendedBox(); !expBB.IsEmpty() {
 		indiceWith += bb.Width()
 	}
 	// adjust the baseline of the indice scope just under the char
-	indice := rectForBaseline(xLeft, indiceWith, height, bb.LR.Y+0.1*sy.EMHeight)
+	indice := rectForBaseline(xLeft, indiceWith, height, bb.LR.Y+0.1*EMHeight)
 
 	return []Scope{indice, exponent}
 }
@@ -206,13 +221,33 @@ type fracOperator struct {
 
 func (f *fracOperator) Children() []*Node { return []*Node{f.num, f.den} }
 
-func (fracOperator) Scopes() []Scope {
-	// TODO:
-	return nil
+func (f fracOperator) Scopes() []Scope {
+	// the width is given by the fraction itself
+
+	bbox := f.Grapheme.Symbol.Union().BoundingBox()
+	fracTop, fracBottom := bbox.UL.Y, bbox.LR.Y
+
+	// enlarge the num height
+	numHeight := EMHeight * 0.9
+	if numBB, _ := f.num.extendedBox(); !numBB.IsEmpty() {
+		numHeight = numBB.Height() + 0.1*EMHeight
+	}
+	num := Scope{UL: sy.Pos{X: bbox.UL.X, Y: fracTop - numHeight}, LR: sy.Pos{X: bbox.LR.X, Y: fracTop}}
+
+	// enlarge the den height
+	denHeight := EMHeight * 0.9
+	if denBB, _ := f.den.extendedBox(); !denBB.IsEmpty() {
+		denHeight = denBB.Height() + 0.1*EMHeight
+	}
+	den := Scope{UL: sy.Pos{X: bbox.UL.X, Y: fracBottom}, LR: sy.Pos{X: bbox.LR.X, Y: fracBottom + denHeight}}
+
+	return []Scope{num, den}
 }
 
-// TODO:
-func (r fracOperator) laTeX() string { return "" }
+func (r fracOperator) laTeX() string {
+	num, den := r.num.latex(), r.den.latex()
+	return fmt.Sprintf(`\frac{%s}{%s}`, num, den)
+}
 
 type sumOperator struct {
 	Grapheme
