@@ -151,11 +151,14 @@ func bezierEnergyGradient(points []Pos, pathLengths []Fl, bezier Bezier) (out [4
 //
 // and popularized in
 // https://stackoverflow.com/questions/5525665/smoothing-a-hand-drawn-curve/5530600#5530600
-//
-// it assumes len(points) >= 4
 func fitCubicBeziers(points []Pos) []Bezier {
 	// remove artifacts
 	points = removeSideArtifacts(points)
+
+	if len(points) == 1 {
+		p := points[0]
+		return []Bezier{{p, p, p, p}}
+	}
 
 	// unit tangent vectors at endpoints
 	tHat1 := computeStartTangent(points)
@@ -349,7 +352,7 @@ func hasSpuriousRepetitionEnd(points []Pos) (int, bool) {
 		start = 0
 	}
 
-	for i := L - 6; i < L; i++ {
+	for i := start; i < L; i++ {
 		p := points[i]
 		if seen[p] { // should not happend
 			return i, true
@@ -359,12 +362,30 @@ func hasSpuriousRepetitionEnd(points []Pos) (int, bool) {
 	return 0, false
 }
 
+// some profiles captured with a tablet have repetitions
+func removeDuplicates(points []Pos) (out []Pos) {
+	last := Pos{Inf, Inf} // can't be in points
+
+	for _, p := range points {
+		if p == last { // duplicate, ignore it
+			continue
+		}
+		out = append(out, p)
+		last = p
+	}
+	return out
+}
+
 func removeSideArtifacts(points []Pos) []Pos {
-	points = append([]Pos{}, points...)
+	points = removeDuplicates(points)
 
 	// detect non moving, non significative points
 	if cut, hasRepetition := hasSpuriousRepetitionStart(points); hasRepetition {
 		points = points[cut:]
+	}
+
+	if len(points) <= 3 {
+		return points
 	}
 
 	if distP(points[0], points[3]) <= 1 {

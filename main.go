@@ -1,14 +1,25 @@
 package main
 
 import (
-	"fyne.io/fyne/v2/app"
-	"github.com/benoitkugler/pen2latex/fyneUI/views"
+	"log"
+	"os"
+
+	"gioui.org/app"
+	"gioui.org/unit"
+	"github.com/benoitkugler/pen2latex/GUI"
 )
 
 func main() {
-	a := app.New()
-	w := a.NewWindow("Pen to LaTeX")
-
-	w.SetContent(views.Home())
-	w.ShowAndRun()
+	go func() {
+		w := app.NewWindow(
+			app.Title("Pen2LaTeX"),
+			app.Size(unit.Dp(400), unit.Dp(600)),
+		)
+		err := GUI.Run(w)
+		if err != nil {
+			log.Fatal(err)
+		}
+		os.Exit(0)
+	}()
+	app.Main()
 }

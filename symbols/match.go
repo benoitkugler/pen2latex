@@ -26,7 +26,7 @@ func (db *Store) Lookup(input Symbol, context Rect) rune {
 	inputFootprint := input.Footprint()
 	nbShapes := len(input)
 
-	for i, entry := range db.entries {
+	for i, entry := range db.Symbols {
 		// use the same number of components as the input
 		if len(entry.Footprint) < nbShapes { // ignore this entry
 			continue
@@ -41,11 +41,11 @@ func (db *Store) Lookup(input Symbol, context Rect) rune {
 	if bestIndex == -1 {
 		return 0
 	}
-	return db.entries[bestIndex].R
+	return db.Symbols[bestIndex].R
 }
 
 // Footprint builds the footprint of the symbol
-func (sy Symbol) Footprint() SymbolFootprint { return newSymbolFootprint(sy) }
+func (sy Symbol) Footprint() Footprint { return newSymbolFootprint(sy) }
 
 // ShapeFP stores a simplified representation of one
 // [Shape]
@@ -79,6 +79,14 @@ func newFp(points Shape) ShapeFP {
 	return ShapeFP{Curves: curves, ArcLengths: arcLengths}
 }
 
+func (fp ShapeFP) boundingBox() Rect {
+	re := EmptyRect()
+	for _, cu := range fp.Curves {
+		re.Union(cu.boundingBox())
+	}
+	return re
+}
+
 func (fp ShapeFP) controlBox() Rect {
 	re := fp.Curves[0].controlBox()
 	for _, cu := range fp.Curves {
@@ -95,7 +103,7 @@ func (fp ShapeFP) String() string {
 	return fmt.Sprintf("{curves: []Bezier{%s}, arcLengths: %#v}", strings.Join(curves, ", "), fp.ArcLengths)
 }
 
-func mapFromTo(U, V Rect) trans {
+func mapFromTo(U, V Rect) Trans {
 	// rescale U to V
 	startU, endU := U.UL, U.LR
 	startV, endV := V.UL, V.LR
@@ -108,17 +116,18 @@ func mapFromTo(U, V Rect) trans {
 
 	t := Bv.Sub(Bu)
 
-	return trans{s, t}
+	return Trans{s, t}
 }
 
-func (fp ShapeFP) scale(tr trans) ShapeFP {
+// scale apply [tr] to all the bezier curves, returning a new shape
+func (fp ShapeFP) scale(tr Trans) ShapeFP {
 	out := ShapeFP{
 		Curves: make([]Bezier, len(fp.Curves)),
 		// note that tr preserve lengths
 		ArcLengths: fp.ArcLengths,
 	}
 	for i, c := range fp.Curves {
-		out.Curves[i] = c.scale(tr)
+		out.Curves[i] = c.Scale(tr)
 	}
 	return out
 }
@@ -173,7 +182,7 @@ func adjustFootprints(U, V ShapeFP) (c1s, c2s []Bezier, ok bool) {
 	if h < 0.1 { // handle linear sections
 		h = 1
 	}
-	tr := trans{s: 20 / Sqrt(h*w)}
+	tr := Trans{Scale: 20 / Sqrt(h*w)}
 	U = U.scale(tr)
 	V = V.scale(tr)
 
@@ -271,29 +280,40 @@ func (fp ShapeFP) split(splits splitMap) []Bezier {
 
 // ----------------- extension to whole symbols -----------------
 
-// SymbolFootprint stores a simplfied representation
+// Footprint stores a simplfied representation
 // of a [Symbol].
-type SymbolFootprint []ShapeFP
+type Footprint []ShapeFP
 
-func newSymbolFootprint(sy Symbol) SymbolFootprint {
-	out := make(SymbolFootprint, len(sy))
+func newSymbolFootprint(sy Symbol) Footprint {
+	out := make(Footprint, len(sy))
 	for i, shape := range sy {
 		out[i] = newFp(shape)
 	}
 	return out
 }
 
-func (sf SymbolFootprint) controlBox() Rect {
-	out := sf[0].controlBox()
+// controlBox returns the union of the control box of each shape.
+// It is a cheap approximation of the bounding box.
+func (sf Footprint) controlBox() Rect {
+	out := EmptyRect()
 	for _, sh := range sf {
 		out.Union(sh.controlBox())
 	}
 	return out
 }
 
+// BoundingBox returns the union of the bounding box of each shape.
+func (sf Footprint) BoundingBox() Rect {
+	out := EmptyRect()
+	for _, sh := range sf {
+		out.Union(sh.boundingBox())
+	}
+	return out
+}
+
 // distanceSymbols compare two footprints for whole symbols
 // is always return infinity if the symbols have not the same length
-func distanceSymbols(U, V SymbolFootprint) Fl {
+func distanceSymbols(U, V Footprint) Fl {
 	if len(U) != len(V) {
 		return Inf
 	}

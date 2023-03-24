@@ -1,36 +1,37 @@
 package symbols
 
-// encode an affine trans, the composition
+// encode an affine Trans, the composition
 // of a (preserving ratio) scaling and a translation
 //
 //	V = | s  0 | U  + | tx |
 //		| 0  s |	  | ty |
-type trans struct {
-	s Fl
-	t Pos
+type Trans struct {
+	Scale       Fl
+	Translation Pos
 }
 
-var id = trans{s: 1, t: Pos{}}
+var Id = Trans{Scale: 1, Translation: Pos{}}
 
-func (tr trans) apply(p Pos) Pos {
+func (tr Trans) apply(p Pos) Pos {
 	return Pos{
-		X: tr.s*p.X + tr.t.X,
-		Y: tr.s*p.Y + tr.t.Y,
+		X: tr.Scale*p.X + tr.Translation.X,
+		Y: tr.Scale*p.Y + tr.Translation.Y,
 	}
 }
 
-func (b Bezier) scale(tr trans) Bezier {
+// Scale apply the given transformation
+func (b Bezier) Scale(tr Trans) Bezier {
 	return Bezier{tr.apply(b.P0), tr.apply(b.P1), tr.apply(b.P2), tr.apply(b.P3)}
 }
 
 func angleDiff(a1, a2 Fl) Fl {
 	if a1 >= 0 {
 		if a2 < 0 {
-			return min(abs(a1-a2), abs(a1-a2-360))
+			return Min(abs(a1-a2), abs(a1-a2-360))
 		}
 	} else {
 		if a2 > 0 {
-			return min(abs(a1-a2), abs(a1-a2+360))
+			return Min(abs(a1-a2), abs(a1-a2+360))
 		}
 	}
 	return abs(a1 - a2)

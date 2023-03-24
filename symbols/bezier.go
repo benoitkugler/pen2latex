@@ -81,6 +81,14 @@ func (b Bezier) splitAt(t Fl) (b1, b2 Bezier) {
 	return Bezier{A, E, H, K}, Bezier{K, J, G, D}
 }
 
+func (be Bezier) boundingBox() Rect {
+	re := EmptyRect()
+	for _, p := range be.toPoints() {
+		re.enlarge(p)
+	}
+	return re
+}
+
 func (be Bezier) controlBox() Rect {
 	re := Rect{be.P0, be.P0}
 	re.enlarge(be.P1)

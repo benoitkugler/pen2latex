@@ -40,7 +40,7 @@ func TestMapBetween(t *testing.T) {
 	be1 := Bezier{Pos{}, Pos{0, 40}, Pos{50, 40}, Pos{60, 0}}
 	c1, c2 := be1.splitAt(0.7)
 
-	tu.AssertEqual(t, mapFromTo(Rect{be1.P0, be1.P3}, Rect{c1.P0, c2.P3}), trans{1, Pos{}})
+	tu.AssertEqual(t, mapFromTo(Rect{be1.P0, be1.P3}, Rect{c1.P0, c2.P3}), Trans{1, Pos{}})
 }
 
 var shapes = []struct {
@@ -502,7 +502,7 @@ var symbols = []struct {
 
 func TestSymbolDistance(t *testing.T) {
 	var (
-		footprints []SymbolFootprint
+		footprints []Footprint
 		groups     []int // index of the group the footprint belongs to
 	)
 	for i, g := range symbols {
@@ -582,8 +582,8 @@ func TestPrintSymbols(t *testing.T) {
 	}
 }
 
-func (db Store) get(r rune) SymbolFootprint {
-	for _, v := range db.entries {
+func (db Store) get(r rune) Footprint {
+	for _, v := range db.Symbols {
 		if r == v.R {
 			return v.Footprint
 		}

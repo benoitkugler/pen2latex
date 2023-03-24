@@ -10,14 +10,14 @@ type Fl = float32
 
 var Inf = Fl(math.Inf(+1))
 
-func min(x, y Fl) Fl {
+func Min(x, y Fl) Fl {
 	if x < y {
 		return x
 	}
 	return y
 }
 
-func max(x, y Fl) Fl {
+func Max(x, y Fl) Fl {
 	if x > y {
 		return x
 	}
@@ -100,24 +100,24 @@ func (r Rect) tranlate(p Pos) Rect {
 }
 
 func (r *Rect) enlarge(point Pos) {
-	r.UL.X = min(r.UL.X, point.X)
-	r.UL.Y = min(r.UL.Y, point.Y)
-	r.LR.X = max(r.LR.X, point.X)
-	r.LR.Y = max(r.LR.Y, point.Y)
+	r.UL.X = Min(r.UL.X, point.X)
+	r.UL.Y = Min(r.UL.Y, point.Y)
+	r.LR.X = Max(r.LR.X, point.X)
+	r.LR.Y = Max(r.LR.Y, point.Y)
 }
 
 func (r *Rect) Union(other Rect) {
-	r.UL.X = min(r.UL.X, other.UL.X)
-	r.UL.Y = min(r.UL.Y, other.UL.Y)
-	r.LR.X = max(r.LR.X, other.LR.X)
-	r.LR.Y = max(r.LR.Y, other.LR.Y)
+	r.UL.X = Min(r.UL.X, other.UL.X)
+	r.UL.Y = Min(r.UL.Y, other.UL.Y)
+	r.LR.X = Max(r.LR.X, other.LR.X)
+	r.LR.Y = Max(r.LR.Y, other.LR.Y)
 }
 
 func (r Rect) Intersection(other Rect) Rect {
-	upperY := max(r.UL.Y, other.UL.Y)
-	lowerY := min(r.LR.Y, other.LR.Y)
-	leftX := max(r.UL.X, other.UL.X)
-	rightX := min(r.LR.X, other.LR.X)
+	upperY := Max(r.UL.Y, other.UL.Y)
+	lowerY := Min(r.LR.Y, other.LR.Y)
+	leftX := Max(r.UL.X, other.UL.X)
+	rightX := Min(r.LR.X, other.LR.X)
 	if upperY > lowerY || leftX > rightX {
 		return EmptyRect()
 	}
@@ -131,8 +131,8 @@ func (r Rect) Area() Fl { return r.Width() * r.Height() }
 
 func (r Rect) Size() Pos { return Pos{r.Width(), r.Height()} }
 
-func (r Rect) Width() Fl  { return max(r.LR.X-r.UL.X, 0) }
-func (r Rect) Height() Fl { return max(r.LR.Y-r.UL.Y, 0) }
+func (r Rect) Width() Fl  { return Max(r.LR.X-r.UL.X, 0) }
+func (r Rect) Height() Fl { return Max(r.LR.Y-r.UL.Y, 0) }
 
 // Shape stores the points of a shape drawn without lifting the pen
 type Shape []Pos

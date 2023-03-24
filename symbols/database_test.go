@@ -22,5 +22,5 @@ func TestSerialize(t *testing.T) {
 
 	db2, err := NewStoreFromDisk(path)
 	tu.AssertNoErr(t, err)
-	tu.AssertEqual(t, len(db2.entries), len(db.entries))
+	tu.AssertEqual(t, len(db2.Symbols), len(db.Symbols))
 }
