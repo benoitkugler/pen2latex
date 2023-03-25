@@ -13,7 +13,7 @@ func main() {
 	go func() {
 		w := app.NewWindow(
 			app.Title("Pen2LaTeX"),
-			app.Size(unit.Dp(400), unit.Dp(600)),
+			app.Size(unit.Dp(500), unit.Dp(600)),
 		)
 		err := GUI.Run(w)
 		if err != nil {

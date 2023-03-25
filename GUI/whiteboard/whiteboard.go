@@ -10,9 +10,7 @@ import (
 	"gioui.org/op"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
-	"gioui.org/widget"
 	"gioui.org/widget/material"
-	"github.com/benoitkugler/pen2latex/GUI/shared"
 	la "github.com/benoitkugler/pen2latex/layout"
 	sy "github.com/benoitkugler/pen2latex/symbols"
 )
@@ -29,41 +27,30 @@ type Whiteboard struct {
 	footprint sy.Footprint
 
 	recorder la.Recorder
-
-	reset widget.Clickable
-
-	OnValid widget.Clickable
+	newShape bool
 }
 
-func NewWhiteboard(theme *material.Theme) *Whiteboard {
-	return &Whiteboard{theme: theme}
-}
-
-func (b *Whiteboard) Layout(gtx C) D {
-	if b.reset.Clicked() {
-		b.Reset()
-	}
-
-	return shared.Padding(10).Layout(gtx, func(gtx C) D {
-		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-			layout.Rigid(func(gtx C) D {
-				return layout.Flex{Axis: layout.Horizontal, Spacing: layout.SpaceAround}.Layout(gtx, layout.Rigid(func(gtx C) D { return b.layoutDrawArea(gtx) }))
-			}),
-			layout.Rigid(shared.WithPadding(10, material.Button(b.theme, &b.reset, "Effacer").Layout)),
-			layout.Rigid(shared.WithPadding(10, material.Button(b.theme, &b.OnValid, "Valider").Layout)),
-		)
-	})
-}
+func NewWhiteboard(theme *material.Theme) *Whiteboard { return &Whiteboard{theme: theme} }
 
 // Footprint is the current footprint drawn
 func (b *Whiteboard) Footprint() sy.Footprint { return b.footprint }
 
+// Reset remove any drawings or recordings
 func (b *Whiteboard) Reset() {
 	b.recorder.Reset()
 	b.footprint = nil
 }
 
-func (b *Whiteboard) layoutDrawArea(gtx C) D {
+// HasNewShape is the event for a new shape.
+func (b *Whiteboard) HasNewShape() (la.Record, bool) {
+	if b.newShape {
+		b.newShape = false
+		return b.recorder.Record, true
+	}
+	return nil, false
+}
+
+func (b *Whiteboard) Layout(gtx C) D {
 	size := image.Pt(120, 140)
 
 	// Declare the tag.
@@ -82,6 +69,7 @@ func (b *Whiteboard) layoutDrawArea(gtx C) D {
 			case pointer.Release:
 				b.recorder.EndShape()
 				b.footprint = sy.Symbol(b.recorder.Record).Footprint()
+				b.newShape = true
 			case pointer.Drag:
 				b.recorder.AddToShape(sy.Pos{X: x.Position.X, Y: x.Position.Y})
 			}

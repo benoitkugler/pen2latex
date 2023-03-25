@@ -24,3 +24,17 @@ func Padding(padding int) layout.Inset {
 func WithPadding(pad int, w layout.Widget) layout.Widget {
 	return func(gtx C) D { return Padding(pad).Layout(gtx, w) }
 }
+
+func Flex(flex layout.Flex, children ...layout.FlexChild) layout.Widget {
+	return func(gtx layout.Context) layout.Dimensions {
+		return flex.Layout(gtx, children...)
+	}
+}
+
+func Column(children ...layout.FlexChild) layout.Widget {
+	return Flex(layout.Flex{Axis: layout.Vertical}, children...)
+}
+
+func Row(children ...layout.FlexChild) layout.Widget {
+	return Flex(layout.Flex{Axis: layout.Horizontal}, children...)
+}

@@ -8,6 +8,7 @@ import (
 
 	"gioui.org/app"
 	"gioui.org/font/gofont"
+	"gioui.org/font/opentype"
 	"gioui.org/io/system"
 	"gioui.org/layout"
 	"gioui.org/op"
@@ -16,7 +17,6 @@ import (
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 	"github.com/benoitkugler/pen2latex/GUI/views"
-	"github.com/benoitkugler/pen2latex/GUI/whiteboard"
 	"github.com/benoitkugler/pen2latex/symbols"
 )
 
@@ -54,12 +54,25 @@ func saveStore(st symbols.Store) {
 
 // Run starts the application
 func Run(w *app.Window) error {
-	th := material.NewTheme(gofont.Collection())
+	fontFile, err := os.ReadFile("/usr/share/fonts/opentype/stix-word/STIXMath-Regular.otf")
+	if err != nil {
+		return err
+	}
+
+	mathFont, err := opentype.Parse(fontFile)
+	if err != nil {
+		return err
+	}
+
+	fonts := gofont.Collection()
+	fonts = append(fonts, text.FontFace{Face: mathFont})
+
+	th := material.NewTheme(fonts)
 	store := loadStore()
 
 	var homeMenu menu
 
-	whiteboard := whiteboard.NewWhiteboard(th)
+	editor := views.NewEditor(&store, th)
 	symbols := views.NewStore(&store, th)
 
 	view := viewHome
@@ -76,7 +89,9 @@ func Run(w *app.Window) error {
 				view = viewEditor
 			} else if homeMenu.tableBtn.Clicked() {
 				view = viewSymbols
-			} else if whiteboard.OnValid.Clicked() {
+			} else if symbols.BackButton.Clicked() {
+				view = viewHome
+			} else if editor.BackButton.Clicked() {
 				view = viewHome
 			}
 
@@ -86,7 +101,7 @@ func Run(w *app.Window) error {
 			case viewHome:
 				homeMenu.layout(gtx, th)
 			case viewEditor:
-				whiteboard.Layout(gtx)
+				editor.Layout(gtx)
 			case viewSymbols:
 				symbols.Layout(gtx)
 			}
