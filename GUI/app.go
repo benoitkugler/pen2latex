@@ -39,6 +39,19 @@ func loadStore() symbols.Store {
 	return database
 }
 
+func saveStore(st symbols.Store) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		panic(err) // TODO:
+	}
+	storePath := filepath.Join(homeDir, "pen2latex.store.json")
+	err = st.Serialize(storePath)
+	if err != nil {
+		panic(err) // TODO:
+	}
+	log.Println("Store saved in", storePath)
+}
+
 // Run starts the application
 func Run(w *app.Window) error {
 	th := material.NewTheme(gofont.Collection())
@@ -46,8 +59,8 @@ func Run(w *app.Window) error {
 
 	var homeMenu menu
 
-	whiteboard := &whiteboard.Whiteboard{}
-	symbol := views.NewStore(store, th)
+	whiteboard := whiteboard.NewWhiteboard(th)
+	symbols := views.NewStore(&store, th)
 
 	view := viewHome
 
@@ -56,12 +69,15 @@ func Run(w *app.Window) error {
 		e := <-w.Events()
 		switch e := e.(type) {
 		case system.DestroyEvent:
+			saveStore(store)
 			return e.Err
 		case system.FrameEvent:
 			if homeMenu.editorBtn.Clicked() {
 				view = viewEditor
 			} else if homeMenu.tableBtn.Clicked() {
 				view = viewSymbols
+			} else if whiteboard.OnValid.Clicked() {
+				view = viewHome
 			}
 
 			gtx := layout.NewContext(&ops, e)
@@ -72,11 +88,10 @@ func Run(w *app.Window) error {
 			case viewEditor:
 				whiteboard.Layout(gtx)
 			case viewSymbols:
-				symbol.Layout(gtx)
+				symbols.Layout(gtx)
 			}
 
 			e.Frame(gtx.Ops)
-
 		}
 	}
 }

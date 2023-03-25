@@ -3,11 +3,14 @@ package views
 import (
 	"fmt"
 	"image"
+	"image/color"
+	"unicode/utf8"
 
 	"gioui.org/layout"
-	"gioui.org/unit"
+	"gioui.org/text"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
+	sh "github.com/benoitkugler/pen2latex/GUI/shared"
 	"github.com/benoitkugler/pen2latex/GUI/whiteboard"
 	sy "github.com/benoitkugler/pen2latex/symbols"
 )
@@ -17,45 +20,107 @@ type (
 	D = layout.Dimensions
 )
 
-func padding(padding int) layout.Inset {
-	return layout.Inset{
-		Top:    unit.Dp(padding),
-		Bottom: unit.Dp(padding),
-		Right:  unit.Dp(padding),
-		Left:   unit.Dp(padding),
-	}
-}
-
-func withPadding(w layout.Widget, pad int) layout.Widget {
-	return func(gtx C) D { return padding(pad).Layout(gtx, w) }
-}
-
 type Store struct {
 	theme *material.Theme
-	store sy.Store
-	list  widget.List
+
+	store       *sy.Store
+	list        widget.List
+	editButtons []widget.Clickable
+
+	runeField widget.Editor
+	addButton widget.Clickable
+
+	indexEdited int
+	editor      *whiteboard.Whiteboard
 }
 
-func NewStore(store sy.Store, th *material.Theme) Store {
+func NewStore(store *sy.Store, th *material.Theme) Store {
 	out := Store{store: store, theme: th}
 	out.list.Axis = layout.Vertical
+	out.editButtons = make([]widget.Clickable, len(store.Symbols))
+
+	out.editor = whiteboard.NewWhiteboard(th)
+	out.indexEdited = -1
+
+	out.runeField = widget.Editor{Alignment: text.Middle, SingleLine: true, Submit: true, MaxLen: 1}
+
 	return out
 }
 
 func (fl *Store) Layout(gtx C) D {
-	return material.List(fl.theme, &fl.list).Layout(gtx, len(fl.store.Symbols), func(gtx C, index int) D {
-		item := fl.store.Symbols[index]
-		return footprintCard(item).layout(gtx, fl.theme)
-	})
+	// event handling
+
+	if fl.editor.OnValid.Clicked() {
+		// commit the changes
+		fl.store.Symbols[fl.indexEdited].Footprint = fl.editor.Footprint()
+		fl.editor.Reset()
+		fl.indexEdited = -1
+	}
+
+	if fl.addButton.Clicked() {
+		r, _ := utf8.DecodeRuneInString(fl.runeField.Text())
+		fl.runeField.SetText("")
+
+		fl.store.Symbols = append(fl.store.Symbols, sy.RuneFootprint{R: r})
+		fl.editButtons = append(fl.editButtons, widget.Clickable{})
+		fl.indexEdited = len(fl.store.Symbols) - 1
+	}
+
+	if fl.indexEdited != -1 { // editor mode
+		return fl.editor.Layout(gtx)
+	}
+
+	add := material.Button(fl.theme, &fl.addButton, "Ajouter un symbol")
+	add.Background = color.NRGBA{10, 200, 10, 255}
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Flexed(8, func(gtx layout.Context) layout.Dimensions {
+			return material.List(fl.theme, &fl.list).Layout(gtx, len(fl.store.Symbols), func(gtx C, index int) D {
+				item := fl.store.Symbols[index]
+				btn := &fl.editButtons[index]
+				if btn.Clicked() {
+					// reset to not mix runes
+					fl.editor.Reset()
+					fl.indexEdited = index
+				}
+				return footprintCard{item, btn}.layout(gtx, fl.theme)
+			})
+		}),
+		layout.Rigid(sh.WithPadding(10, func(gtx C) D {
+			return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+				layout.Flexed(1, func(gtx C) D {
+					if fl.runeField.Len() == 0 {
+						return add.Layout(gtx.Disabled())
+					}
+					return add.Layout(gtx)
+				}),
+				layout.Rigid(sh.WithPadding(5, material.Editor(fl.theme, &fl.runeField, "Nouveau symbol").Layout)),
+			)
+		})),
+	)
 }
 
-type footprintCard sy.RuneFootprint
+type footprintCard struct {
+	fp  sy.RuneFootprint
+	btn *widget.Clickable
+}
 
 func (fc footprintCard) layout(gtx C, th *material.Theme) D {
-	return padding(10).Layout(gtx, func(gtx C) D {
-		return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-			layout.Flexed(3, material.H4(th, fmt.Sprintf("Rune : %s", string(fc.R))).Layout),
-			layout.Flexed(1, withPadding(footprint{fc.Footprint}.layout, 10)))
+	borderColor := color.NRGBA{0, 200, 100, 255}
+	border := widget.Border{Color: borderColor, CornerRadius: 10, Width: 1}
+	return sh.Padding(5).Layout(gtx, func(gtx C) D {
+		return border.Layout(gtx, func(gtx C) D {
+			return sh.Padding(10).Layout(gtx, func(gtx C) D {
+				return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+					layout.Flexed(2, func(gtx C) D {
+						return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+							layout.Rigid(material.H4(th, fmt.Sprintf("Rune    %s", string(fc.fp.R))).Layout),
+							layout.Rigid(layout.Spacer{Height: 20}.Layout),
+							layout.Rigid(material.Button(th, fc.btn, "Modifier").Layout),
+						)
+					}),
+					layout.Flexed(1, sh.WithPadding(20, footprint{fc.fp.Footprint}.layout)))
+			})
+		})
 	})
 }
 
@@ -75,5 +140,5 @@ func (b footprint) layout(gtx C) D {
 
 	whiteboard.DrawFootprint(gtx.Ops, b.fp, trans)
 
-	return layout.Dimensions{Size: image.Pt(footprintWidth, footprintWidth)}
+	return D{Size: image.Pt(footprintWidth, footprintWidth)}
 }
