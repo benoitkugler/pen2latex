@@ -7,10 +7,6 @@ import (
 	"sort"
 )
 
-// var RequiredRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
-
-var RequiredRunes = []rune("abcdefxy()123_\u03A3")
-
 // Store stores the shapes of
 // runes, as setup by the user,
 // and is later used to map a mouse entry to a rune.

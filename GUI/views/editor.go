@@ -35,11 +35,22 @@ func (ed *Editor) Layout(gtx C) D {
 		ed.matched = 0
 	}
 
-	if record, ok := ed.wb.HasNewShape(); ok {
+	if ok := ed.wb.HasNewShape(); ok {
 		// udapte the recognized rune
-		symbol := record.InferSymbol()
-		r := ed.store.Lookup(symbol, symbols.Rect{})
+		rec := ed.wb.Record()
+		// symbol := rec.Identify(ed.store)
+		// fmt.Println("Matching", len(symbol), "strokes")
+		r := rec.Identify(ed.store)
 		ed.matched = r
+
+		fmt.Println(rec)
+
+		// drop the old strokes when we are sure they
+		// are not part of a compound symbol
+		// TODO:
+		// if !symbol.IsCompound() {
+		// 	ed.wb.DropButLast()
+		// }
 	}
 
 	return layout.Flex{Axis: layout.Vertical, Spacing: layout.SpaceEvenly}.Layout(gtx,

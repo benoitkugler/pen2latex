@@ -9,6 +9,7 @@ import (
 // the closest symbol to [input] in the database and returning its rune.
 //
 // It will return 0 if the store is empty or if no symbol matches [input].
+// It also returns the best error found.
 //
 // # Matching overview
 //
@@ -17,21 +18,14 @@ import (
 //   - for each [Shape] in the record, segment it into Bezier curves, yielding a [ShapeFootprint]
 //   - for each symbol entry in the database, compute the distance between its footprint and the input
 //   - TODO: disambiguate results using the size of the surrounding context
-func (db *Store) Lookup(input Symbol, context Rect) rune {
+func (db *Store) Lookup(input Footprint, context Rect) (rune, Fl) {
 	var (
 		bestIndex    int = -1
 		bestDistance     = Inf
 	)
 
-	inputFootprint := input.Footprint()
-	nbShapes := len(input)
-
 	for i, entry := range db.Symbols {
-		// use the same number of components as the input
-		if len(entry.Footprint) < nbShapes { // ignore this entry
-			continue
-		}
-		distance := distanceSymbols(entry.Footprint[:nbShapes], inputFootprint)
+		distance := distanceSymbols(entry.Footprint, input)
 		if distance < bestDistance {
 			bestDistance = distance
 			bestIndex = i
@@ -39,26 +33,22 @@ func (db *Store) Lookup(input Symbol, context Rect) rune {
 	}
 
 	if bestIndex == -1 {
-		return 0
+		return 0, Inf
 	}
-	return db.Symbols[bestIndex].R
+	return db.Symbols[bestIndex].R, bestDistance
 }
 
 // Footprint builds the footprint of the symbol
 func (sy Symbol) Footprint() Footprint { return newSymbolFootprint(sy) }
 
-// ShapeFP stores a simplified representation of one
+// Stroke stores a simplified representation of one
 // [Shape]
-type ShapeFP struct {
+type Stroke struct {
 	Curves     []Bezier `json:"c"`
 	ArcLengths []Fl     `json:"a"` // between 0 and 1, starts after the first part and ends at 1
 }
 
-func newFp(points Shape) ShapeFP {
-	if len(points) < 4 {
-		return ShapeFP{}
-	}
-
+func newFp(points Shape) Stroke {
 	// fit and regularize
 	curves := mergeSimilarCurves(fitCubicBeziers(points))
 
@@ -76,10 +66,10 @@ func newFp(points Shape) ShapeFP {
 		arcLengths[i] /= totalLength
 	}
 
-	return ShapeFP{Curves: curves, ArcLengths: arcLengths}
+	return Stroke{Curves: curves, ArcLengths: arcLengths}
 }
 
-func (fp ShapeFP) boundingBox() Rect {
+func (fp Stroke) boundingBox() Rect {
 	re := EmptyRect()
 	for _, cu := range fp.Curves {
 		re.Union(cu.boundingBox())
@@ -87,7 +77,7 @@ func (fp ShapeFP) boundingBox() Rect {
 	return re
 }
 
-func (fp ShapeFP) controlBox() Rect {
+func (fp Stroke) controlBox() Rect {
 	re := fp.Curves[0].controlBox()
 	for _, cu := range fp.Curves {
 		re.Union(cu.controlBox())
@@ -95,12 +85,19 @@ func (fp ShapeFP) controlBox() Rect {
 	return re
 }
 
-func (fp ShapeFP) String() string {
+func (fp Stroke) IsPoint() (Pos, bool) {
+	if len(fp.Curves) != 1 {
+		return Pos{}, false
+	}
+	return fp.Curves[0].IsPoint()
+}
+
+func (fp Stroke) String() string {
 	curves := make([]string, len(fp.Curves))
 	for i, c := range fp.Curves {
 		curves[i] = c.String()
 	}
-	return fmt.Sprintf("{curves: []Bezier{%s}, arcLengths: %#v}", strings.Join(curves, ", "), fp.ArcLengths)
+	return fmt.Sprintf("{Curves: []Bezier{%s}, ArcLengths: %#v}", strings.Join(curves, ", "), fp.ArcLengths)
 }
 
 func mapFromTo(U, V Rect) Trans {
@@ -120,8 +117,8 @@ func mapFromTo(U, V Rect) Trans {
 }
 
 // scale apply [tr] to all the bezier curves, returning a new shape
-func (fp ShapeFP) scale(tr Trans) ShapeFP {
-	out := ShapeFP{
+func (fp Stroke) scale(tr Trans) Stroke {
+	out := Stroke{
 		Curves: make([]Bezier, len(fp.Curves)),
 		// note that tr preserve lengths
 		ArcLengths: fp.ArcLengths,
@@ -137,7 +134,7 @@ func startEnd(cu []Bezier) Rect {
 }
 
 // rescale U to V
-func distanceFootprints(U, V ShapeFP) Fl {
+func distanceFootprints(U, V Stroke) Fl {
 	tr := mapFromTo(startEnd(U.Curves), startEnd(V.Curves))
 	U = U.scale(tr)
 
@@ -146,7 +143,7 @@ func distanceFootprints(U, V ShapeFP) Fl {
 
 // distanceFootprintNoScale returns the distance between U and V,
 // without rescaling step
-func distanceFootprintNoScale(U, V ShapeFP) Fl {
+func distanceFootprintNoScale(U, V Stroke) Fl {
 	c1s, c2s, ok := adjustFootprints(U, V)
 	if !ok {
 		return Inf
@@ -163,6 +160,8 @@ func distanceFootprintNoScale(U, V ShapeFP) Fl {
 		d := c1.distance(c2)
 		length := c1.arcLength()
 
+		// fmt.Println(d, length)
+
 		totalDist += d * length
 		totalLength += length
 	}
@@ -171,7 +170,7 @@ func distanceFootprintNoScale(U, V ShapeFP) Fl {
 }
 
 // adjustFootprints assume U has been scaled to match V
-func adjustFootprints(U, V ShapeFP) (c1s, c2s []Bezier, ok bool) {
+func adjustFootprints(U, V Stroke) (c1s, c2s []Bezier, ok bool) {
 	// rescale both U and V to a reference size so that error values are
 	// comparable across the database
 	cbox := U.controlBox()
@@ -209,9 +208,10 @@ func mapBetweenArcLengths(a1, a2 []Fl) (s1, s2 splitMap, ok bool) {
 	i1, i2 := 0, 0
 	s1, s2 = make(splitMap), make(splitMap)
 	for i1 < len(a1) && i2 < len(a2) {
+		const gapWidth = 0.05
 		v1, v2 := a1[i1], a2[i2]
 		// are the values roughly the same ?
-		if abs(v1-v2) < 0.1 {
+		if abs(v1-v2) < gapWidth {
 			// nothing to do
 			i1++
 			i2++
@@ -227,7 +227,6 @@ func mapBetweenArcLengths(a1, a2 []Fl) (s1, s2 splitMap, ok bool) {
 
 			// check if there is a significant gap,
 			// to be split up
-			const gapWidth = 0.1
 			if v1 < v2 {
 				// try to split [prev2, v1, v2]
 				if abs(v1-prev2) > gapWidth && abs(v2-v1) > gapWidth {
@@ -255,7 +254,7 @@ func mapBetweenArcLengths(a1, a2 []Fl) (s1, s2 splitMap, ok bool) {
 	return s1, s2, true
 }
 
-func (fp ShapeFP) split(splits splitMap) []Bezier {
+func (fp Stroke) split(splits splitMap) []Bezier {
 	if len(splits) == 0 {
 		return fp.Curves
 	}
@@ -282,13 +281,17 @@ func (fp ShapeFP) split(splits splitMap) []Bezier {
 
 // Footprint stores a simplfied representation
 // of a [Symbol].
-type Footprint []ShapeFP
+type Footprint struct {
+	Strokes []Stroke
+}
 
 func newSymbolFootprint(sy Symbol) Footprint {
-	out := make(Footprint, len(sy))
+	strokes := make([]Stroke, len(sy))
 	for i, shape := range sy {
-		out[i] = newFp(shape)
+		strokes[i] = newFp(shape)
 	}
+	out := Footprint{Strokes: strokes}
+
 	return out
 }
 
@@ -296,7 +299,7 @@ func newSymbolFootprint(sy Symbol) Footprint {
 // It is a cheap approximation of the bounding box.
 func (sf Footprint) controlBox() Rect {
 	out := EmptyRect()
-	for _, sh := range sf {
+	for _, sh := range sf.Strokes {
 		out.Union(sh.controlBox())
 	}
 	return out
@@ -305,16 +308,28 @@ func (sf Footprint) controlBox() Rect {
 // BoundingBox returns the union of the bounding box of each shape.
 func (sf Footprint) BoundingBox() Rect {
 	out := EmptyRect()
-	for _, sh := range sf {
+	for _, sh := range sf.Strokes {
 		out.Union(sh.boundingBox())
 	}
 	return out
 }
 
-// distanceSymbols compare two footprints for whole symbols
+func distanceSymbols(store, input Footprint) Fl {
+	nbStrokes := len(input.Strokes)
+
+	// use the same number of components as the input
+	if len(store.Strokes) < nbStrokes { // ignore this entry
+		return Inf
+	}
+	store.Strokes = store.Strokes[:nbStrokes] // only mutate the local [store]
+
+	return distanceSymbolsExact(store, input)
+}
+
+// distanceSymbolsExact compare two footprints for whole symbols
 // is always return infinity if the symbols have not the same length
-func distanceSymbols(U, V Footprint) Fl {
-	if len(U) != len(V) {
+func distanceSymbolsExact(U, V Footprint) Fl {
+	if len(U.Strokes) != len(V.Strokes) {
 		return Inf
 	}
 
@@ -323,12 +338,12 @@ func distanceSymbols(U, V Footprint) Fl {
 	tr := mapFromTo(U.controlBox(), V.controlBox())
 
 	var totalDistance Fl
-	for i := range U {
-		fpU, fpV := U[i], V[i]
+	for i := range U.Strokes {
+		fpU, fpV := U.Strokes[i], V.Strokes[i]
 		fpU = fpU.scale(tr) // apply the scale
 		d := distanceFootprintNoScale(fpU, fpV)
 		totalDistance += d
 	}
 
-	return totalDistance
+	return totalDistance / Fl(len(U.Strokes))
 }

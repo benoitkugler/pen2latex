@@ -14,6 +14,14 @@ import (
 
 // shared functions for tests
 
+func generateFootprint(curves []Bezier) Shape {
+	var all Shape
+	for _, part := range curves {
+		all = append(all, part.toPoints()...)
+	}
+	return all
+}
+
 func minMax2D(values []Pos) image.Rectangle {
 	minX, maxX := values[0].X, values[0].X
 	minY, maxY := values[0].Y, values[0].Y

@@ -167,3 +167,25 @@ func TestF(t *testing.T) {
 	fitteds := fitCubicBeziers(points)
 	tu.AssertEqual(t, len(mergeSimilarCurves(fitteds)), 1)
 }
+
+func Test1(t *testing.T) {
+	points := Shape{
+		{X: 45.0, Y: 58.0}, {X: 45.0, Y: 58.0}, {X: 45.0, Y: 58.0}, {X: 45.0, Y: 58.0}, {X: 45.0, Y: 58.0}, {X: 45.0, Y: 58.0}, {X: 45.0, Y: 58.0}, {X: 45.0, Y: 58.0}, {X: 45.0, Y: 58.0}, {X: 45.0, Y: 58.0}, {X: 46.0, Y: 58.0}, {X: 47.0, Y: 58.0}, {X: 48.0, Y: 57.0}, {X: 50.0, Y: 56.0}, {X: 52.0, Y: 55.0}, {X: 53.0, Y: 54.0}, {X: 55.0, Y: 53.0}, {X: 56.0, Y: 51.0}, {X: 57.0, Y: 49.0}, {X: 59.0, Y: 48.0}, {X: 59.0, Y: 46.0}, {X: 60.0, Y: 44.0}, {X: 60.0, Y: 43.0}, {X: 60.0, Y: 42.0}, {X: 61.0, Y: 41.0}, {X: 61.0, Y: 40.0}, {X: 61.0, Y: 40.0}, {X: 61.0, Y: 40.0}, {X: 61.0, Y: 40.0}, {X: 61.0, Y: 40.0}, {X: 61.0, Y: 41.0}, {X: 60.0, Y: 43.0}, {X: 60.0, Y: 45.0}, {X: 60.0, Y: 48.0}, {X: 59.0, Y: 52.0}, {X: 59.0, Y: 55.0}, {X: 58.0, Y: 59.0}, {X: 58.0, Y: 63.0}, {X: 57.0, Y: 66.0}, {X: 57.0, Y: 69.0}, {X: 57.0, Y: 71.0}, {X: 57.0, Y: 73.0}, {X: 57.0, Y: 75.0}, {X: 57.0, Y: 75.0}, {X: 57.0, Y: 76.0}, {X: 57.0, Y: 76.0}, {X: 57.0, Y: 76.0}, {X: 57.0, Y: 76.0}, {X: 57.0, Y: 76.0}, {X: 57.0, Y: 76.0}, {X: 57.0, Y: 75.0},
+	}
+	fitteds := fitCubicBeziers(points)
+	fitteds = mergeSimilarCurves(fitteds)
+	tu.AssertEqual(t, len(fitteds), 2)
+
+	printShape(t, fitteds[0].toPoints(), "c0")
+	printShape(t, fitteds[1].toPoints(), "c1")
+}
+
+func Test_areBeziersSpuriousCurvature(t *testing.T) {
+	c1 := Bezier{Pos{X: 45.0, Y: 58.0}, Pos{X: 59.2, Y: 58.0}, Pos{X: 61.5, Y: 29.9}, Pos{X: 60.0, Y: 48.0}}
+	c2 := Bezier{Pos{X: 60.0, Y: 48.0}, Pos{X: 58.5, Y: 62.0}, Pos{X: 58.5, Y: 62.0}, Pos{X: 57.0, Y: 76.0}}
+	f1, f2, ok := areBeziersSpuriousCurvature(c1, c2)
+	tu.Assert(t, ok)
+
+	printShape(t, f1.toPoints(), "1")
+	printShape(t, f2.toPoints(), "2")
+}

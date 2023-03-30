@@ -7,6 +7,8 @@ import (
 	sy "github.com/benoitkugler/pen2latex/symbols"
 )
 
+const debugMode = true
+
 type Fl = sy.Fl
 
 // Record stores the raw user input
@@ -47,18 +49,121 @@ func closestPointDistance(u, v sy.Shape) Fl {
 	return sy.Sqrt(best)
 }
 
-// InferSymbol decides which part of the record should be used
-// to match a rune.
-func (rec Record) InferSymbol() sy.Symbol {
-	const penWidth = 4
+func (rec Record) Identify(store *sy.Store) rune {
+	if toMatch, ok := rec.isSeparated(); ok { // easy case : only use the last stroke
 
-	last, shape := rec.split()
-	// we consider that compound symbol always have adjacent strokes
-	if d := closestPointDistance(last.Union(), shape); d < penWidth { // we have a compound
-		return sy.Symbol(rec)
+		if debugMode {
+			fmt.Println("Identify record : isSeparated -> last stroke matched")
+		}
+
+		r, _ := store.Lookup(toMatch.Footprint(), sy.Rect{})
+		return r
+	}
+	// here, len(rec) > 1
+	wholeFootprint := sy.Symbol(rec).Footprint()
+	previous, last := wholeFootprint.Strokes[:len(wholeFootprint.Strokes)-1], wholeFootprint.Strokes[len(wholeFootprint.Strokes)-1]
+	previousFooprint, lastFootprint := sy.Footprint{Strokes: previous}, sy.Footprint{Strokes: []sy.Stroke{last}}
+
+	if isMerged(previous, last) {
+
+		if debugMode {
+			fmt.Println("Identify record : isMerged -> whole symbol matched")
+		}
+
+		r, _ := store.Lookup(wholeFootprint, sy.Rect{})
+		return r
 	}
 
-	return sy.Symbol{shape}
+	// special for points
+	if len(last.Curves) == 1 {
+		if point, ok := last.Curves[0].IsPoint(); ok {
+			// decide to match the whole symbol base on the X value
+			bbox := previousFooprint.BoundingBox()
+			fmt.Println("point, ", bbox.LR.X, point.X)
+			if bbox.LR.X+2 >= point.X {
+
+				if debugMode {
+					fmt.Println("Identify record : point -> whole symbol matched")
+				}
+
+				r, _ := store.Lookup(wholeFootprint, sy.Rect{})
+				return r
+			}
+		}
+	}
+
+	// here we are not sure : it could be two distinct symbols
+	// or only one sligtly separated like x, ℝ, ...
+	//
+	// to disambiguate, we perform to lookups and compare errors
+
+	// lookup with the whole symbol
+	rWhole, errWhole := store.Lookup(wholeFootprint, sy.Rect{})
+
+	// lookup with separated symbol
+	_, errPrevious := store.Lookup(previousFooprint, sy.Rect{})
+	rLast, errLast := store.Lookup(lastFootprint, sy.Rect{})
+
+	fmt.Println(errPrevious, errLast, errWhole)
+
+	// it always easier to match separate parts : compense a bit
+	if sy.Max(errPrevious, errLast) < 0.9*errWhole {
+
+		if debugMode {
+			fmt.Println("Identify record : after lookup -> last stroke matched")
+		}
+
+		return rLast
+	}
+
+	if debugMode {
+		fmt.Println("Identify record : after lookup -> whole stroke matched")
+	}
+
+	return rWhole
+}
+
+// return true if the last stroke has one intersection
+// with the others
+func isMerged(previous []sy.Stroke, last sy.Stroke) bool {
+	if len(last.Curves) != 1 {
+		return false
+	}
+	seg := last.Curves[0]
+	if !seg.IsRoughlyLinear() {
+		return false
+	}
+	start, end := seg.P0, seg.P3
+	for _, stroke := range previous {
+		for _, cu := range stroke.Curves {
+			if cu.IntersectsSegment(start, end) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// isSeparated returns true if we are certain only the last
+// stroke should be used when matching runes
+// is always returns true if len(rec) == 1
+func (rec Record) isSeparated() (sy.Symbol, bool) {
+	const splitWidth = 5
+
+	if len(rec) == 1 { // only one stroke
+		return sy.Symbol(rec), true
+	}
+
+	previous, last := rec.split()
+
+	// we consider that compound symbol always have strokes with overlapping X values
+	previousBbox, lastBbox := previous.Union().BoundingBox(), last.BoundingBox()
+	if previousBbox.LR.X+splitWidth < lastBbox.UL.X || // previous then last
+		lastBbox.LR.X+splitWidth < previousBbox.UL.X { // last then previous
+		return sy.Symbol{last}, true
+	}
+
+	return nil, false
 }
 
 // Recorder is used to record the shapes

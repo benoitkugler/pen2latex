@@ -14,18 +14,21 @@ func (line *Line) Insert(rec Record, db *sy.Store) (isCompound bool) {
 	node, scope, insertPos := line.FindNode(last.BoundingBox())
 	fmt.Printf("enclosing box %v index : %v %p\n", scope, insertPos, node)
 
-	symbol := rec.InferSymbol()
-	fmt.Println("matching symbol with len", len(symbol))
-	r := db.Lookup(symbol, sy.Rect{})
+	// symbol := rec.InferSymbol()
+	// fmt.Println("matching symbol with len", len(symbol))
+	// r, _ := db.Lookup(symbol, sy.Rect{})
 
-	if r == 0 && symbol.IsCompound() {
-		// try again without the compound is the touch is spurious
-		_, last := rec.split()
-		symbol = sy.Symbol{last}
-		r = db.Lookup(symbol, sy.Rect{})
-	}
+	// if r == 0 && symbol.IsCompound() {
+	// 	// try again without the compound is the touch is spurious
+	// 	_, last := rec.split()
+	// 	symbol = sy.Symbol{last}
+	// 	r, _ = db.Lookup(symbol, sy.Rect{})
+	// }
+	r := rec.Identify(db)
 
 	// if a compound symbol is matched, simply update the previous char
+	// TODO:
+	var symbol sy.Symbol
 	if symbol.IsCompound() && line.cursor != nil {
 		fmt.Println(r, string(r))
 		*line.cursor = Grapheme{Char: r, Symbol: symbol}

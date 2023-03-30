@@ -34,20 +34,26 @@ func NewWhiteboard(theme *material.Theme) *Whiteboard { return &Whiteboard{theme
 
 // Footprint is the current footprint drawn
 func (b *Whiteboard) Footprint() sy.Footprint { return b.footprint }
+func (b *Whiteboard) Record() la.Record       { return b.recorder.Record }
 
 // Reset remove any drawings or recordings
 func (b *Whiteboard) Reset() {
 	b.recorder.Reset()
-	b.footprint = nil
+	b.footprint = sy.Footprint{}
+}
+
+func (b *Whiteboard) DropButLast() {
+	b.recorder.DropButLast()
+	b.footprint = sy.Symbol(b.recorder.Record).Footprint()
 }
 
 // HasNewShape is the event for a new shape.
-func (b *Whiteboard) HasNewShape() (la.Record, bool) {
+func (b *Whiteboard) HasNewShape() bool {
 	if b.newShape {
 		b.newShape = false
-		return b.recorder.Record, true
+		return true
 	}
-	return nil, false
+	return false
 }
 
 func (b *Whiteboard) Layout(gtx C) D {
@@ -88,16 +94,26 @@ func (b *Whiteboard) Layout(gtx C) D {
 func DrawFootprint(ops *op.Ops, footprint sy.Footprint, trans sy.Trans) {
 	color := color.NRGBA{255, 12, 12, 255}
 
-	for _, shape := range footprint {
-		var path clip.Path
-		path.Begin(ops)
-		for _, curve := range shape.Curves {
-			curve = curve.Scale(trans)
-			path.MoveTo(f32.Pt(curve.P0.X, curve.P0.Y))
-			path.CubeTo(f32.Pt(curve.P1.X, curve.P1.Y), f32.Pt(curve.P2.X, curve.P2.Y), f32.Pt(curve.P3.X, curve.P3.Y))
-		}
-		spec := path.End()
+	for _, shape := range footprint.Strokes {
+		if point, ok := shape.IsPoint(); ok {
+			point = trans.Apply(point)
+			point = point.Sub(sy.Pos{X: 0.5, Y: 0.5})
+			min := image.Point{int(point.X), int(point.Y)}
+			max := min.Add(image.Point{1, 1})
 
-		paint.FillShape(ops, color, clip.Stroke{Path: spec, Width: 1.2}.Op())
+			spec := clip.Ellipse{Min: min, Max: max}.Path(ops)
+			paint.FillShape(ops, color, clip.Stroke{Path: spec, Width: 1.2}.Op())
+		} else {
+			var path clip.Path
+			path.Begin(ops)
+			for _, curve := range shape.Curves {
+				curve = curve.Scale(trans)
+				path.MoveTo(f32.Pt(curve.P0.X, curve.P0.Y))
+				path.CubeTo(f32.Pt(curve.P1.X, curve.P1.Y), f32.Pt(curve.P2.X, curve.P2.Y), f32.Pt(curve.P3.X, curve.P3.Y))
+			}
+			spec := path.End()
+
+			paint.FillShape(ops, color, clip.Stroke{Path: spec, Width: 1.2}.Op())
+		}
 	}
 }

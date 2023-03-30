@@ -40,19 +40,34 @@ type Pos struct {
 
 func (p Pos) String() string { return fmt.Sprintf("{X: %.01f, Y:%.01f}", p.X, p.Y) }
 
-func (p *Pos) Scale(s Fl)       { p.X *= s; p.Y *= s }
-func (p *Pos) normalize()       { p.Scale(1 / p.Norm()) }
+func (p *Pos) Scale(s Fl) { p.X *= s; p.Y *= s }
+
+func (p *Pos) normalize() {
+	if n := p.Norm(); n != 0 {
+		p.Scale(1 / n)
+	}
+}
+
 func (p Pos) ScaleTo(s Fl) Pos  { p.Scale(s); return p }
 func (p Pos) Add(other Pos) Pos { p.X += other.X; p.Y += other.Y; return p }
 func (p Pos) Sub(other Pos) Pos { p.X -= other.X; p.Y -= other.Y; return p }
 func (p Pos) Norm() Fl          { return Sqrt(p.NormSquared()) }
 func (p Pos) NormSquared() Fl   { return p.X*p.X + p.Y*p.Y }
 
+// (x, y) => (x*c - s*y, x*s + y*c)
+func (p *Pos) rotate(cosTheta, sinTheta Fl) {
+	x, y := p.X, p.Y
+	p.X = x*cosTheta - y*sinTheta
+	p.Y = x*sinTheta + y*cosTheta
+}
+
 // return the quadratic norm
 func distP(p1, p2 Pos) Fl { return p1.Sub(p2).Norm() }
 
 // returns the dot product of a and b
 func dotProduct(a, b Pos) Fl { return (a.X * b.X) + (a.Y * b.Y) }
+
+func crossProduct(a, b Pos) Fl { return (a.X * b.Y) - (a.Y * b.X) }
 
 // return angle in degree
 func angle(u, v Pos) Fl {

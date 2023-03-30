@@ -398,16 +398,18 @@ func removeSideArtifacts(points []Pos) []Pos {
 	}
 
 	// detect non moving, non significative points
-	if diameter(points[len(points)-5:]) <= 3 {
+	if len(points) >= 5 && diameter(points[len(points)-5:]) <= 3 {
 		points = points[:len(points)-3]
 	} else if cut, hasRepetion := hasSpuriousRepetitionEnd(points); hasRepetion {
 		points = points[:cut]
 	}
 
 	// smooth edges
-	L := len(points) - 1
-	for i := 4; i >= 1; i-- {
-		points[L-i] = points[L-i-1].Add(points[L-i+1]).ScaleTo(0.5)
+	if len(points) >= 4 {
+		L := len(points) - 1
+		for i := 4; i >= 1; i-- {
+			points[L-i] = points[L-i-1].Add(points[L-i+1]).ScaleTo(0.5)
+		}
 	}
 
 	return points
@@ -491,6 +493,13 @@ func computeCenterTangent(d []Pos, center int) (left, right Pos) {
 // mergeSimilarCurves post process a Bezier fit to
 // merge adjacent lines and curves which where split during the fit
 func mergeSimilarCurves(curves []Bezier) (out []Bezier) {
+	// make sure that points are properly recognized
+	if len(curves) == 1 {
+		if point, ok := curves[0].isAlmostPoint(); ok {
+			return []Bezier{{point, point, point, point}}
+		}
+	}
+
 	// start with the first curve
 	out = []Bezier{curves[0]}
 
@@ -499,19 +508,24 @@ func mergeSimilarCurves(curves []Bezier) (out []Bezier) {
 		currentCurve := curves[i]
 		points := append(prevCurve.toPoints(), currentCurve.toPoints()...)
 
-		d1 := prevCurve.P3.Sub(prevCurve.P2)
-		d2 := currentCurve.P1.Sub(currentCurve.P0)
-		areTangentsAligned := abs(angle(d1, d2)) < 5
+		isAligned := areTangentsAligned(prevCurve, currentCurve)
 
 		_, errSegment := fitSegment(points)
 		mergedCurve, errCurve := fitCubicBezier(points)
 
+		f1, f2, spuriousCurvature := areBeziersSpuriousCurvature(prevCurve, currentCurve)
+
 		if errSegment < 1 {
 			// replace the last element of out
 			out[len(out)-1] = segment{prevCurve.P0, currentCurve.P3}.asBezier()
-		} else if areTangentsAligned && errCurve < 12 {
+		} else if isAligned && errCurve < 12 {
 			// replace the last element of out
 			out[len(out)-1] = mergedCurve
+		} else if spuriousCurvature {
+			// replace the last with the correction...
+			out[len(out)-1] = f1
+			// and add the current with the correction
+			out = append(out, f2)
 		} else {
 			// no merging : add the last element
 			out = append(out, currentCurve)
@@ -521,6 +535,26 @@ func mergeSimilarCurves(curves []Bezier) (out []Bezier) {
 
 	return
 }
+
+// return true if there is a spurious curvature at the end of c1 or at the start of c2,
+// coming from a split at the wrong place
+func areBeziersSpuriousCurvature(c1, c2 Bezier) (fixed1, fixed2 Bezier, ok bool) {
+	if !areTangentsAligned(c1, c2) {
+		return
+	}
+
+	if t, ok := c1.hasRoughEndAngle(); ok {
+		// lets split
+		fixed1, _ = c1.splitAt(t)
+		fixed2 = Bezier{fixed1.P3, c2.P1, c2.P2, c2.P3}
+		return fixed1, fixed2, true
+	}
+
+	// TODO: handle the same for c2 at start
+	return
+}
+
+// ----------------------------- shared utils -----------------------------
 
 // return t_i : coefficients in [0, 1], computed from the path length
 func pathLengthIndices(points []Pos) []Fl {
