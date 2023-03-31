@@ -124,6 +124,35 @@ func (b Bezier) arcLength() Fl {
 	return length
 }
 
+// after clippping return the approximated line portions that intersects
+// taken from https://stackoverflow.com/a/4041286
+func (U Bezier) HasIntersection(other Bezier) bool {
+	const threshold = 0.1
+	var aux func(b1, b2 Bezier) bool
+	aux = func(b1, b2 Bezier) bool {
+		bbox1, bbox2 := b1.controlBox(), b2.controlBox()
+
+		if bbox1.Intersection(bbox2).IsEmpty() {
+			return false
+		}
+
+		a1, a2 := b1.arcLength(), b2.arcLength()
+		if a1+a2 < threshold { // found one intersection
+			return true
+		}
+
+		// recurse
+		b11, b12 := b1.splitAt(0.5)
+		b21, b22 := b2.splitAt(0.5)
+		return aux(b11, b21) ||
+			aux(b11, b22) ||
+			aux(b12, b21) ||
+			aux(b12, b22)
+	}
+
+	return aux(U, other)
+}
+
 // returns true if the curve describes one point
 func (U Bezier) isAlmostPoint() (Pos, bool) {
 	barycentre := U.P0.Add(U.P3).ScaleTo(0.5)
@@ -142,17 +171,6 @@ func (U Bezier) IsPoint() (Pos, bool) {
 // be approximated by a segment, for collisions purposes
 func (U Bezier) IsRoughlyLinear() bool {
 	return U.diffWithLine() < 0.1
-	// v1 := U.P1.Sub(U.P0)
-	// v2 := U.P3.Sub(U.P2)
-	// v3 := U.P3.Sub(U.P0)
-	// v1.normalize()
-	// v2.normalize()
-	// v3.normalize()
-	// const threshold = 0.5
-	// fmt.Println("isroughtyk", crossProduct(v1, v2), crossProduct(v1, v3), crossProduct(v2, v3))
-	// return abs(crossProduct(v1, v2)) < threshold &&
-	// 	abs(crossProduct(v1, v3)) < threshold &&
-	// 	abs(crossProduct(v2, v3)) < threshold
 }
 
 // assume control points are inside the edges
@@ -177,46 +195,6 @@ func (U Bezier) diffWithLine() Fl {
 	area /= Fl(len(points))
 
 	return area
-}
-
-func distanceToSegment(p Pos, v, w Pos) (Fl, Pos) {
-	// Return minimum distance between line segment vw and point p
-	l2 := v.Sub(w).NormSquared() // i.e. |w-v|^2 -  avoid a sqrt
-
-	var projection Pos
-	if l2 == 0.0 { // v == w case
-		projection = v
-	} else {
-		// Consider the line extending the segment, parameterized as v + t (w - v).
-		// We find projection of point p onto the line.
-		// It falls where t = [(p-v) . (w-v)] / |w-v|^2
-		// We clamp t from [0,1] to handle points outside the segment vw.
-		t := Max(0, Min(1, dotProduct(p.Sub(v), w.Sub(v))/l2))
-		projection = v.Add(w.Sub(v).ScaleTo(t)) // Projection falls on the segment
-	}
-
-	return distP(p, projection), projection
-}
-
-// IntersectsSegment returns true is the curve intersects the given
-// segment in a meaningfull way
-func (be Bezier) IntersectsSegment(start, end Pos) bool {
-	const (
-		threshold  = 2
-		edgesRatio = 0.1
-	)
-	segmentLength := distP(start, end)
-	for _, p := range be.toPoints() {
-		dist, projection := distanceToSegment(p, start, end)
-		// check that the intersection is really inside the segment,
-		// not on the edge
-		fromStartRatio := distP(projection, start) / segmentLength
-		if dist < threshold && fromStartRatio >= edgesRatio && fromStartRatio <= 1-edgesRatio {
-			return true
-		}
-	}
-
-	return false
 }
 
 func areTangentsAligned(c1, c2 Bezier) bool {

@@ -35,6 +35,12 @@ func (rec Record) split() (sy.Symbol, sy.Shape) {
 	return sy.Symbol(rec[0 : len(rec)-1]), rec[len(rec)-1]
 }
 
+func (rec Record) footprints() (whole sy.Footprint, previous []sy.Stroke, last sy.Stroke) {
+	wholeFootprint := sy.Symbol(rec).Footprint()
+	previous, last = wholeFootprint.Strokes[:len(wholeFootprint.Strokes)-1], wholeFootprint.Strokes[len(wholeFootprint.Strokes)-1]
+	return wholeFootprint, previous, last
+}
+
 // return the distance between the closest point between [u] and [v]
 // This NOT a measure of similarity
 func closestPointDistance(u, v sy.Shape) Fl {
@@ -49,7 +55,8 @@ func closestPointDistance(u, v sy.Shape) Fl {
 	return sy.Sqrt(best)
 }
 
-func (rec Record) Identify(store *sy.Store) rune {
+// Identify returns true if only the last part of the symbol is used.
+func (rec Record) Identify(store *sy.Store) (rune, bool) {
 	if toMatch, ok := rec.isSeparated(); ok { // easy case : only use the last stroke
 
 		if debugMode {
@@ -57,11 +64,10 @@ func (rec Record) Identify(store *sy.Store) rune {
 		}
 
 		r, _ := store.Lookup(toMatch.Footprint(), sy.Rect{})
-		return r
+		return r, true
 	}
 	// here, len(rec) > 1
-	wholeFootprint := sy.Symbol(rec).Footprint()
-	previous, last := wholeFootprint.Strokes[:len(wholeFootprint.Strokes)-1], wholeFootprint.Strokes[len(wholeFootprint.Strokes)-1]
+	wholeFootprint, previous, last := rec.footprints()
 	previousFooprint, lastFootprint := sy.Footprint{Strokes: previous}, sy.Footprint{Strokes: []sy.Stroke{last}}
 
 	if isMerged(previous, last) {
@@ -71,10 +77,10 @@ func (rec Record) Identify(store *sy.Store) rune {
 		}
 
 		r, _ := store.Lookup(wholeFootprint, sy.Rect{})
-		return r
+		return r, false
 	}
 
-	// special for points
+	// special case for points
 	if len(last.Curves) == 1 {
 		if point, ok := last.Curves[0].IsPoint(); ok {
 			// decide to match the whole symbol base on the X value
@@ -87,7 +93,7 @@ func (rec Record) Identify(store *sy.Store) rune {
 				}
 
 				r, _ := store.Lookup(wholeFootprint, sy.Rect{})
-				return r
+				return r, false
 			}
 		}
 	}
@@ -95,7 +101,7 @@ func (rec Record) Identify(store *sy.Store) rune {
 	// here we are not sure : it could be two distinct symbols
 	// or only one sligtly separated like x, ℝ, ...
 	//
-	// to disambiguate, we perform to lookups and compare errors
+	// to disambiguate, we perform two lookups and compare errors
 
 	// lookup with the whole symbol
 	rWhole, errWhole := store.Lookup(wholeFootprint, sy.Rect{})
@@ -104,23 +110,23 @@ func (rec Record) Identify(store *sy.Store) rune {
 	_, errPrevious := store.Lookup(previousFooprint, sy.Rect{})
 	rLast, errLast := store.Lookup(lastFootprint, sy.Rect{})
 
-	fmt.Println(errPrevious, errLast, errWhole)
+	// fmt.Println(errPrevious, errLast, errWhole)
 
 	// it always easier to match separate parts : compense a bit
-	if sy.Max(errPrevious, errLast) < 0.9*errWhole {
+	if 2*sy.Max(errPrevious, errLast) < errWhole {
 
 		if debugMode {
 			fmt.Println("Identify record : after lookup -> last stroke matched")
 		}
 
-		return rLast
+		return rLast, true
 	}
 
 	if debugMode {
 		fmt.Println("Identify record : after lookup -> whole stroke matched")
 	}
 
-	return rWhole
+	return rWhole, false
 }
 
 // return true if the last stroke has one intersection
@@ -133,10 +139,9 @@ func isMerged(previous []sy.Stroke, last sy.Stroke) bool {
 	if !seg.IsRoughlyLinear() {
 		return false
 	}
-	start, end := seg.P0, seg.P3
 	for _, stroke := range previous {
 		for _, cu := range stroke.Curves {
-			if cu.IntersectsSegment(start, end) {
+			if cu.HasIntersection(seg) {
 				return true
 			}
 		}

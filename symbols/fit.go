@@ -405,7 +405,7 @@ func removeSideArtifacts(points []Pos) []Pos {
 	}
 
 	// smooth edges
-	if len(points) >= 4 {
+	if len(points) >= 5 {
 		L := len(points) - 1
 		for i := 4; i >= 1; i-- {
 			points[L-i] = points[L-i-1].Add(points[L-i+1]).ScaleTo(0.5)

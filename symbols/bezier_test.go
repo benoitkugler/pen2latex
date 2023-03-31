@@ -47,8 +47,7 @@ func TestIntersects(t *testing.T) {
 	h := mergeSimilarCurves(fitCubicBeziers(horizontal))
 	tu.AssertEqual(t, len(h), 1)
 	tu.AssertEqual(t, h[0].IsRoughlyLinear(), true)
-	start, end := h[0].P0, h[0].P3
-	tu.AssertEqual(t, v[0].IntersectsSegment(start, end), true)
+	tu.AssertEqual(t, v[0].HasIntersection(h[0]), true)
 
 	vertical = Shape{{X: 56.0, Y: 38.0}, {X: 56.0, Y: 38.0}, {X: 56.0, Y: 38.0}, {X: 56.0, Y: 38.0}, {X: 56.0, Y: 38.0}, {X: 56.0, Y: 38.0}, {X: 56.0, Y: 38.0}, {X: 56.0, Y: 39.0}, {X: 56.0, Y: 39.0}, {X: 56.0, Y: 39.0}, {X: 56.0, Y: 40.0}, {X: 56.0, Y: 41.0}, {X: 56.0, Y: 42.0}, {X: 56.0, Y: 43.0}, {X: 56.0, Y: 45.0}, {X: 55.0, Y: 46.0}, {X: 55.0, Y: 48.0}, {X: 55.0, Y: 50.0}, {X: 55.0, Y: 52.0}, {X: 54.0, Y: 54.0}, {X: 54.0, Y: 57.0}, {X: 54.0, Y: 59.0}, {X: 54.0, Y: 62.0}, {X: 53.0, Y: 65.0}, {X: 53.0, Y: 68.0}, {X: 53.0, Y: 71.0}, {X: 53.0, Y: 74.0}, {X: 53.0, Y: 77.0}, {X: 53.0, Y: 81.0}, {X: 54.0, Y: 83.0}, {X: 54.0, Y: 86.0}, {X: 54.0, Y: 89.0}, {X: 55.0, Y: 91.0}, {X: 56.0, Y: 93.0}, {X: 56.0, Y: 95.0}, {X: 57.0, Y: 96.0}, {X: 58.0, Y: 97.0}, {X: 58.0, Y: 98.0}, {X: 59.0, Y: 99.0}, {X: 59.0, Y: 99.0}, {X: 60.0, Y: 100.0}, {X: 60.0, Y: 100.0}, {X: 61.0, Y: 100.0}, {X: 62.0, Y: 99.0}, {X: 63.0, Y: 98.0}, {X: 64.0, Y: 96.0}, {X: 66.0, Y: 94.0}}
 	horizontal = Shape{{X: 48.0, Y: 50.0}, {X: 48.0, Y: 50.0}, {X: 48.0, Y: 50.0}, {X: 48.0, Y: 50.0}, {X: 48.0, Y: 50.0}, {X: 48.0, Y: 50.0}, {X: 48.0, Y: 50.0}, {X: 48.0, Y: 50.0}, {X: 49.0, Y: 50.0}, {X: 49.0, Y: 50.0}, {X: 51.0, Y: 50.0}, {X: 52.0, Y: 50.0}, {X: 53.0, Y: 50.0}, {X: 55.0, Y: 49.0}, {X: 56.0, Y: 49.0}, {X: 58.0, Y: 49.0}, {X: 59.0, Y: 49.0}, {X: 60.0, Y: 49.0}, {X: 60.0, Y: 49.0}, {X: 61.0, Y: 49.0}, {X: 61.0, Y: 49.0}, {X: 62.0, Y: 49.0}, {X: 62.0, Y: 49.0}, {X: 62.0, Y: 49.0}, {X: 62.0, Y: 49.0}, {X: 62.0, Y: 49.0}, {X: 62.0, Y: 49.0}, {X: 62.0, Y: 49.0}, {X: 62.0, Y: 49.0}, {X: 62.0, Y: 49.0}, {X: 62.0, Y: 49.0}, {X: 61.0, Y: 50.0}}
@@ -56,6 +55,14 @@ func TestIntersects(t *testing.T) {
 	h = mergeSimilarCurves(fitCubicBeziers(horizontal))
 	tu.AssertEqual(t, len(h), 1)
 	tu.AssertEqual(t, h[0].IsRoughlyLinear(), true)
-	start, end = h[0].P0, h[0].P3
-	tu.AssertEqual(t, v[0].IntersectsSegment(start, end), true)
+	tu.AssertEqual(t, v[0].HasIntersection(h[0]), true)
+
+	// easy case : lines
+	b1 := segment{Pos{}, Pos{30, 30}}.asBezier()
+	b2 := segment{Pos{0, 20}, Pos{25, 0}}.asBezier()
+	tu.Assert(t, b1.HasIntersection(b2))
+
+	b1 = Bezier{Pos{X: 62.0, Y: 59.0}, Pos{X: 38.2, Y: 59.0}, Pos{X: 57.8, Y: 91.4}, Pos{X: 69.0, Y: 77.0}}
+	b2 = Bezier{Pos{X: 63.0, Y: 42.0}, Pos{X: 63.0, Y: 53.5}, Pos{X: 80.2, Y: 79.0}, Pos{X: 64.0, Y: 89.0}}
+	tu.Assert(t, !b1.HasIntersection(b2))
 }

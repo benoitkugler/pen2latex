@@ -40,17 +40,16 @@ func (ed *Editor) Layout(gtx C) D {
 		rec := ed.wb.Record()
 		// symbol := rec.Identify(ed.store)
 		// fmt.Println("Matching", len(symbol), "strokes")
-		r := rec.Identify(ed.store)
+		r, onlyLastUsed := rec.Identify(ed.store)
 		ed.matched = r
 
 		fmt.Println(rec)
 
 		// drop the old strokes when we are sure they
 		// are not part of a compound symbol
-		// TODO:
-		// if !symbol.IsCompound() {
-		// 	ed.wb.DropButLast()
-		// }
+		if onlyLastUsed {
+			ed.wb.DropButLast()
+		}
 	}
 
 	return layout.Flex{Axis: layout.Vertical, Spacing: layout.SpaceEvenly}.Layout(gtx,
