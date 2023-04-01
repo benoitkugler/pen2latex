@@ -66,8 +66,8 @@ func (U Bezier) distance(V Bezier) Fl {
 		distancePointDiff += dd
 		curvatureDiff += cd
 		derivativeDiff += ddd
-
 	}
+
 	tU := angle(U.derivativeAt(0), U.derivativeAt(1))
 	tV := angle(V.derivativeAt(0), V.derivativeAt(1))
 

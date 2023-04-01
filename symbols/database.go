@@ -24,9 +24,14 @@ func NewStore(symbols map[rune]Symbol) Store {
 		fp := sy.Footprint()
 		out.Symbols = append(out.Symbols, RuneFootprint{fp, r})
 	}
-	sort.Slice(out.Symbols, func(i, j int) bool { return out.Symbols[i].R < out.Symbols[j].R })
+
+	out.sort()
 
 	return out
+}
+
+func (s Store) sort() {
+	sort.Slice(s.Symbols, func(i, j int) bool { return s.Symbols[i].R < s.Symbols[j].R })
 }
 
 // NewStoreFromDisk load a store previously saved with
@@ -43,6 +48,8 @@ func NewStoreFromDisk(filename string) (Store, error) {
 	if err != nil {
 		return Store{}, fmt.Errorf("deserializing on-disk store: %s", err)
 	}
+
+	out.sort()
 
 	return out, nil
 }
