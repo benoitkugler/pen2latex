@@ -6,7 +6,7 @@ import (
 	"gioui.org/layout"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
-	"github.com/benoitkugler/pen2latex/GUI/shared"
+	sh "github.com/benoitkugler/pen2latex/GUI/shared"
 	"github.com/benoitkugler/pen2latex/GUI/whiteboard"
 	"github.com/benoitkugler/pen2latex/symbols"
 )
@@ -53,12 +53,12 @@ func (ed *Editor) Layout(gtx C) D {
 	}
 
 	return layout.Flex{Axis: layout.Vertical, Spacing: layout.SpaceEvenly}.Layout(gtx,
-		layout.Rigid(shared.Flex(
+		layout.Rigid(sh.Flex(
 			layout.Flex{Axis: layout.Horizontal, Spacing: layout.SpaceEvenly, Alignment: layout.Middle},
 			layout.Rigid(ed.wb.Layout),
 			layout.Rigid(material.Body1(ed.theme, fmt.Sprintf("Caractère reconnu : %s", string(ed.matched))).Layout),
 		)),
-		layout.Rigid(shared.WithPadding(10, material.Button(ed.theme, &ed.resetButton, "Effacer").Layout)),
-		layout.Rigid(shared.WithPadding(10, material.Button(ed.theme, &ed.BackButton, "Retour").Layout)),
+		layout.Rigid(sh.WithPadding(10, sh.Button(ed.theme, &ed.resetButton, "Effacer", sh.NegativeAction).Layout)),
+		layout.Rigid(sh.WithPadding(10, material.Button(ed.theme, &ed.BackButton, "Retour").Layout)),
 	)
 }

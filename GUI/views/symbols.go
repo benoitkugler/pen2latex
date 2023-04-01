@@ -53,6 +53,7 @@ type symbolEditor struct {
 	editor      *whiteboard.Whiteboard
 	validButton widget.Clickable
 	resetButton widget.Clickable
+	backButton  widget.Clickable
 	index       int
 }
 
@@ -98,6 +99,9 @@ func (fl *Store) Layout(gtx C) D {
 	if fl.editor.resetButton.Clicked() {
 		fl.editor.editor.Reset()
 	}
+	if fl.editor.backButton.Clicked() { // cancel editing
+		fl.viewKind = viewList
+	}
 
 	if fl.list.addButton.Clicked() {
 		r, _ := utf8.DecodeRuneInString(fl.list.runeField.Text())
@@ -124,11 +128,9 @@ func (fl *Store) Layout(gtx C) D {
 
 // list mode
 func (fl *Store) layoutList(gtx C) D {
-	add := material.Button(fl.theme, &fl.list.addButton, "Ajouter un symbol")
-	add.Background = color.NRGBA{10, 200, 10, 255}
+	add := sh.Button(fl.theme, &fl.list.addButton, "Ajouter un symbol", sh.PositiveAction)
 
-	reset := material.Button(fl.theme, &fl.list.resetStoreButton, "Ré-initialiser")
-	reset.Background = color.NRGBA{200, 200, 0, 255}
+	reset := sh.Button(fl.theme, &fl.list.resetStoreButton, "Ré-initialiser", sh.NegativeAction)
 
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Flexed(8, func(gtx layout.Context) layout.Dimensions {
@@ -167,8 +169,9 @@ func (fl *Store) layoutEdit(gtx C) D {
 			layout.Rigid(func(gtx C) D {
 				return layout.Flex{Axis: layout.Horizontal, Spacing: layout.SpaceAround}.Layout(gtx, layout.Rigid(fl.editor.editor.Layout))
 			}),
-			layout.Rigid(sh.WithPadding(10, material.Button(fl.theme, &fl.editor.resetButton, "Effacer").Layout)),
-			layout.Rigid(sh.WithPadding(10, material.Button(fl.theme, &fl.editor.validButton, "Enregistrer le symbol").Layout)),
+			layout.Rigid(sh.WithPadding(10, sh.Button(fl.theme, &fl.editor.resetButton, "Effacer", sh.NegativeAction).Layout)),
+			layout.Rigid(sh.WithPadding(10, sh.Button(fl.theme, &fl.editor.validButton, "Enregistrer le symbol", sh.PositiveAction).Layout)),
+			layout.Rigid(sh.WithPadding(10, material.Button(fl.theme, &fl.editor.backButton, "Retour").Layout)),
 		)
 	})
 }
@@ -187,9 +190,9 @@ type storeCreation struct {
 	resetButton widget.Clickable
 }
 
-// var requiredRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+// var requiredRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_×+-∈Σℝ")
 
-var requiredRunes = []rune("abcdefxySoit()123_\u03A3\u2208\u211D")
+var requiredRunes = []rune("abcdefxySoit()123_∈Σℝ")
 
 // var requiredRunes = []rune("a")
 
