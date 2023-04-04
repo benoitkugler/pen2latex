@@ -64,7 +64,7 @@ const (
 )
 
 // Identify returns true if only the last [Stroke] of the symbol is used.
-func (rec Record) Identify(store *sy.Store) (rune, CompoundStatus) {
+func (rec Record) Identify(store *sy.Store, context sy.Context) (rune, CompoundStatus) {
 	wholeFootprint, previous, last := rec.footprints()
 
 	// start with special cases
@@ -78,7 +78,7 @@ func (rec Record) Identify(store *sy.Store) (rune, CompoundStatus) {
 			fmt.Println("Identify record : isSeparated -> last stroke matched")
 		}
 
-		r, _ := store.Lookup(toMatch.Footprint(), sy.Rect{})
+		r, _ := store.Lookup(toMatch.Footprint(), context)
 		return r, LastOrMore
 	}
 	// here, len(rec) > 1
@@ -90,7 +90,7 @@ func (rec Record) Identify(store *sy.Store) (rune, CompoundStatus) {
 			fmt.Println("Identify record : isMerged -> whole symbol matched")
 		}
 
-		r, _ := store.Lookup(wholeFootprint, sy.Rect{})
+		r, _ := store.Lookup(wholeFootprint, context)
 		return r, Whole
 	}
 
@@ -106,7 +106,7 @@ func (rec Record) Identify(store *sy.Store) (rune, CompoundStatus) {
 					fmt.Println("Identify record : point -> whole symbol matched")
 				}
 
-				r, _ := store.Lookup(wholeFootprint, sy.Rect{})
+				r, _ := store.Lookup(wholeFootprint, context)
 				return r, Whole
 			}
 		}
@@ -118,11 +118,11 @@ func (rec Record) Identify(store *sy.Store) (rune, CompoundStatus) {
 	// to disambiguate, we perform two lookups and compare errors
 
 	// lookup with the whole symbol
-	rWhole, errWhole := store.Lookup(wholeFootprint, sy.Rect{})
+	rWhole, errWhole := store.Lookup(wholeFootprint, context)
 
 	// lookup with separated symbol
-	_, errPrevious := store.Lookup(previousFooprint, sy.Rect{})
-	rLast, errLast := store.Lookup(lastFootprint, sy.Rect{})
+	_, errPrevious := store.Lookup(previousFooprint, context)
+	rLast, errLast := store.Lookup(lastFootprint, context)
 
 	// fmt.Println(errPrevious, errLast, errWhole)
 

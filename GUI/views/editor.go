@@ -41,7 +41,7 @@ func (ed *Editor) Layout(gtx C) D {
 		rec := ed.wb.Record()
 		// symbol := rec.Identify(ed.store)
 		// fmt.Println("Matching", len(symbol), "strokes")
-		r, onlyLastUsed := rec.Identify(ed.store)
+		r, onlyLastUsed := rec.Identify(ed.store, ed.wb.Context())
 		ed.matched = r
 
 		fmt.Println(rec)

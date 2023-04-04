@@ -24,7 +24,7 @@ func (line *Line) Insert(rec Record, db *sy.Store) (isCompound bool) {
 	// 	symbol = sy.Symbol{last}
 	// 	r, _ = db.Lookup(symbol, sy.Rect{})
 	// }
-	r, _ := rec.Identify(db)
+	r, _ := rec.Identify(db, sy.Context{})
 
 	// if a compound symbol is matched, simply update the previous char
 	// TODO:

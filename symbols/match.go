@@ -19,8 +19,8 @@ const debugMode = true
 // we perform the following steps :
 //   - for each [Shape] in the record, segment it into Bezier curves, yielding a [ShapeFootprint]
 //   - for each symbol entry in the database, compute the distance between its footprint and the input
-//   - TODO: disambiguate results using the size of the surrounding context
-func (db *Store) Lookup(input Footprint, context Rect) (rune, Fl) {
+//   - disambiguate results using the size of the surrounding context
+func (db *Store) Lookup(input Footprint, context Context) (rune, Fl) {
 	var (
 		bestIndex    int = -1
 		bestDistance     = Inf
@@ -37,7 +37,11 @@ func (db *Store) Lookup(input Footprint, context Rect) (rune, Fl) {
 	if bestIndex == -1 {
 		return 0, Inf
 	}
-	return db.Symbols[bestIndex].R, bestDistance
+
+	r, d := db.Symbols[bestIndex].R, bestDistance
+	r = distinguishByContext(input, context, r)
+
+	return r, d
 }
 
 // Footprint builds the footprint of the symbol

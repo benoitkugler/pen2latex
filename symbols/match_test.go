@@ -668,12 +668,12 @@ func TestLookup(t *testing.T) {
 	for _, group := range symbols {
 		expectedRune := rune(group.description[0])
 		for _, symbol := range group.symbols {
-			gotRune, _ := db.Lookup(symbol.Footprint(), Rect{})
+			gotRune, _ := db.Lookup(symbol.Footprint(), Context{})
 			tu.AssertEqual(t, string(gotRune), string(expectedRune))
 		}
 	}
 
-	invalid, _ := db.Lookup(Symbol{{{}}, {{}}, {{}}, {{}}}.Footprint(), Rect{})
+	invalid, _ := db.Lookup(Symbol{{{}}, {{}}, {{}}, {{}}}.Footprint(), Context{})
 	tu.AssertEqual(t, invalid, rune(0))
 }
 
@@ -754,7 +754,7 @@ func TestMatchDB_1(t *testing.T) {
 
 	tu.Assert(t, distanceSymbols(ref, input) < distanceSymbols(ref_other, input))
 
-	r, _ := store.Lookup(input, Rect{})
+	r, _ := store.Lookup(input, Context{})
 	tu.AssertEqual(t, r, '1')
 }
 
@@ -780,7 +780,7 @@ func TestMatchDB_3(t *testing.T) {
 
 	tu.Assert(t, distanceSymbols(ref, input) < distanceSymbols(ref_other, input))
 
-	r, _ := store.Lookup(input, Rect{})
+	r, _ := store.Lookup(input, Context{})
 	tu.AssertEqual(t, r, '3')
 }
 
@@ -806,7 +806,7 @@ func TestMatchDB_4(t *testing.T) {
 	dother := distanceSymbols(ref_other, input)
 	tu.Assert(t, dref < dother)
 
-	r, _ := store.Lookup(input, Rect{})
+	r, _ := store.Lookup(input, Context{})
 	tu.AssertEqual(t, r, '4')
 }
 
