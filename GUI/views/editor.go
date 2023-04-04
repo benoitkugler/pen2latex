@@ -8,6 +8,7 @@ import (
 	"gioui.org/widget/material"
 	sh "github.com/benoitkugler/pen2latex/GUI/shared"
 	"github.com/benoitkugler/pen2latex/GUI/whiteboard"
+	la "github.com/benoitkugler/pen2latex/layout"
 	"github.com/benoitkugler/pen2latex/symbols"
 )
 
@@ -47,8 +48,12 @@ func (ed *Editor) Layout(gtx C) D {
 
 		// drop the old strokes when we are sure they
 		// are not part of a compound symbol
-		if onlyLastUsed {
+		switch onlyLastUsed {
+		case la.Whole: // nothing to do
+		case la.LastOrMore: // keep the last
 			ed.wb.DropButLast()
+		case la.LastAndSealed:
+			ed.wb.Reset()
 		}
 	}
 

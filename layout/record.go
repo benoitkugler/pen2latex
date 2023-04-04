@@ -55,8 +55,23 @@ func closestPointDistance(u, v sy.Shape) Fl {
 	return sy.Sqrt(best)
 }
 
-// Identify returns true if only the last part of the symbol is used.
-func (rec Record) Identify(store *sy.Store) (rune, bool) {
+type CompoundStatus uint8
+
+const (
+	Whole         CompoundStatus = iota // the whole symbol has been used
+	LastOrMore                          // only the last stroke has been used, but this stroke may be part of a symbol
+	LastAndSealed                       // only the last stroke has been used, and we are certain no more strokes may come
+)
+
+// Identify returns true if only the last [Stroke] of the symbol is used.
+func (rec Record) Identify(store *sy.Store) (rune, CompoundStatus) {
+	wholeFootprint, previous, last := rec.footprints()
+
+	// start with special cases
+	if last.IsSqrt() {
+		return '\u221A', LastAndSealed // √
+	}
+
 	if toMatch, ok := rec.isSeparated(); ok { // easy case : only use the last stroke
 
 		if debugMode {
@@ -64,10 +79,9 @@ func (rec Record) Identify(store *sy.Store) (rune, bool) {
 		}
 
 		r, _ := store.Lookup(toMatch.Footprint(), sy.Rect{})
-		return r, true
+		return r, LastOrMore
 	}
 	// here, len(rec) > 1
-	wholeFootprint, previous, last := rec.footprints()
 	previousFooprint, lastFootprint := sy.Footprint{Strokes: previous}, sy.Footprint{Strokes: []sy.Stroke{last}}
 
 	if isMerged(previous, last) {
@@ -77,7 +91,7 @@ func (rec Record) Identify(store *sy.Store) (rune, bool) {
 		}
 
 		r, _ := store.Lookup(wholeFootprint, sy.Rect{})
-		return r, false
+		return r, Whole
 	}
 
 	// special case for points
@@ -93,7 +107,7 @@ func (rec Record) Identify(store *sy.Store) (rune, bool) {
 				}
 
 				r, _ := store.Lookup(wholeFootprint, sy.Rect{})
-				return r, false
+				return r, Whole
 			}
 		}
 	}
@@ -119,14 +133,14 @@ func (rec Record) Identify(store *sy.Store) (rune, bool) {
 			fmt.Println("Identify record : after lookup -> last stroke matched")
 		}
 
-		return rLast, true
+		return rLast, LastOrMore
 	}
 
 	if debugMode {
 		fmt.Println("Identify record : after lookup -> whole stroke matched")
 	}
 
-	return rWhole, false
+	return rWhole, Whole
 }
 
 // return true if the last stroke has one intersection
