@@ -37,13 +37,14 @@ func (b *Whiteboard) Footprint() sy.Footprint { return b.footprint }
 func (b *Whiteboard) Record() la.Record       { return b.recorder.Record }
 
 const (
+	width    = 400
 	height   = 90
 	baseline = 60
 )
 
 func (b *Whiteboard) Context() sy.Context {
 	return sy.Context{
-		Box:      sy.Rect{UL: sy.Pos{}, LR: sy.Pos{X: 120, Y: height}},
+		Box:      sy.Rect{UL: sy.Pos{}, LR: sy.Pos{X: width, Y: height}},
 		Baseline: baseline,
 	}
 }
@@ -69,7 +70,7 @@ func (b *Whiteboard) HasNewShape() bool {
 }
 
 func (b *Whiteboard) Layout(gtx C) D {
-	size := image.Pt(120, height)
+	size := image.Pt(width, height)
 
 	// Declare the tag.
 	st := clip.Rect{Max: size}.Push(gtx.Ops)
@@ -98,7 +99,7 @@ func (b *Whiteboard) Layout(gtx C) D {
 	paint.FillShape(gtx.Ops, color.NRGBA{0xE0, 0xF2, 0xF1, 0xFF}, clip.Rect{Max: size}.Op())
 
 	// baseline
-	paint.FillShape(gtx.Ops, color.NRGBA{0, 0, 0, 0xFF}, clip.Rect{Min: image.Pt(0, baseline), Max: image.Pt(120, baseline+1)}.Op())
+	paint.FillShape(gtx.Ops, color.NRGBA{0, 0, 0, 0xFF}, clip.Rect{Min: image.Pt(0, baseline), Max: image.Pt(width, baseline+1)}.Op())
 
 	// drawn symbol
 	DrawFootprint(gtx.Ops, b.footprint, sy.Id)

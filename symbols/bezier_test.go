@@ -37,6 +37,16 @@ func TestIsRoughlyLinear(t *testing.T) {
 	fitted = mergeSimilarCurves(fitCubicBeziers(points))
 	tu.AssertEqual(t, len(fitted), 1)
 	tu.AssertEqual(t, fitted[0].IsRoughlyLinear(), true)
+
+	// controls are slightly outside segment
+	be = Bezier{Pos{X: 46.0, Y: 26.6}, Pos{X: 46.0, Y: 30.0}, Pos{X: 44.2, Y: 46.6}, Pos{X: 43.9, Y: 44.8}}
+	tu.AssertEqual(t, be.IsRoughlyLinear(), true)
+
+	// spurious end points
+	points = Shape{{X: 175.0, Y: 33.0}, {X: 175.0, Y: 33.0}, {X: 175.0, Y: 33.0}, {X: 175.0, Y: 33.0}, {X: 175.0, Y: 33.0}, {X: 175.0, Y: 33.0}, {X: 175.0, Y: 33.0}, {X: 175.0, Y: 33.0}, {X: 175.0, Y: 33.0}, {X: 175.0, Y: 33.0}, {X: 175.0, Y: 33.0}, {X: 175.0, Y: 33.0}, {X: 175.0, Y: 33.0}, {X: 175.0, Y: 33.0}, {X: 175.0, Y: 33.0}, {X: 175.0, Y: 33.0}, {X: 175.0, Y: 33.0}, {X: 175.0, Y: 33.0}, {X: 175.0, Y: 33.0}, {X: 175.0, Y: 33.0}, {X: 175.0, Y: 33.0}, {X: 175.0, Y: 33.0}, {X: 175.0, Y: 33.0}, {X: 175.0, Y: 33.0}, {X: 175.0, Y: 33.0}, {X: 175.0, Y: 33.0}, {X: 175.0, Y: 33.0}, {X: 175.0, Y: 34.0}, {X: 175.0, Y: 35.0}, {X: 176.0, Y: 36.0}, {X: 176.0, Y: 38.0}, {X: 176.0, Y: 40.0}, {X: 176.0, Y: 42.0}, {X: 177.0, Y: 44.0}, {X: 177.0, Y: 46.0}, {X: 177.0, Y: 48.0}, {X: 177.0, Y: 50.0}, {X: 177.0, Y: 53.0}, {X: 178.0, Y: 55.0}, {X: 178.0, Y: 57.0}, {X: 178.0, Y: 59.0}, {X: 178.0, Y: 61.0}, {X: 178.0, Y: 63.0}, {X: 179.0, Y: 64.0}, {X: 179.0, Y: 64.0}, {X: 179.0, Y: 65.0}, {X: 179.0, Y: 65.0}, {X: 179.0, Y: 65.0}, {X: 179.0, Y: 65.0}, {X: 179.0, Y: 65.0}, {X: 179.0, Y: 65.0}, {X: 179.0, Y: 65.0}, {X: 179.0, Y: 65.0}, {X: 179.0, Y: 65.0}, {X: 179.0, Y: 64.0}, {X: 178.0, Y: 64.0}, {X: 178.0, Y: 64.0}, {X: 178.0, Y: 63.0}, {X: 178.0, Y: 62.0}, {X: 178.0, Y: 61.0}}
+	fitted = mergeSimilarCurves(fitCubicBeziers(points))
+	tu.AssertEqual(t, len(fitted), 1)
+	tu.AssertEqual(t, fitted[0].IsRoughlyLinear(), true)
 }
 
 func TestIntersects(t *testing.T) {
@@ -65,4 +75,22 @@ func TestIntersects(t *testing.T) {
 	b1 = Bezier{Pos{X: 62.0, Y: 59.0}, Pos{X: 38.2, Y: 59.0}, Pos{X: 57.8, Y: 91.4}, Pos{X: 69.0, Y: 77.0}}
 	b2 = Bezier{Pos{X: 63.0, Y: 42.0}, Pos{X: 63.0, Y: 53.5}, Pos{X: 80.2, Y: 79.0}, Pos{X: 64.0, Y: 89.0}}
 	tu.Assert(t, !b1.HasIntersection(b2))
+}
+
+func Test_hasSpuriousCurvature(t *testing.T) {
+	be := Bezier{Pos{X: 46.0, Y: 26.6}, Pos{X: 46.0, Y: 30.0}, Pos{X: 44.2, Y: 46.6}, Pos{X: 43.9, Y: 44.8}}
+	_, ok := be.hasSpuriousCurvature()
+	tu.AssertEqual(t, ok, true)
+
+	be = Bezier{Pos{X: 62.0, Y: 59.0}, Pos{X: 38.2, Y: 59.0}, Pos{X: 57.8, Y: 91.4}, Pos{X: 69.0, Y: 77.0}}
+	_, ok = be.hasSpuriousCurvature()
+	tu.AssertEqual(t, ok, false)
+
+	be = Bezier{Pos{X: 18.0, Y: 10.3}, Pos{X: 14.5, Y: 28.4}, Pos{X: 29.9, Y: 31.3}, Pos{X: 16.0, Y: 31.3}}
+	_, ok = be.hasSpuriousCurvature()
+	tu.AssertEqual(t, ok, false)
+
+	be = Bezier{Pos{X: 18.0, Y: 10.3}, Pos{X: 18.0, Y: -8.1}, Pos{X: 29.9, Y: 31.3}, Pos{X: 16.0, Y: 31.3}}
+	_, ok = be.hasSpuriousCurvature()
+	tu.AssertEqual(t, ok, false)
 }

@@ -49,6 +49,11 @@ func distinguishByContext(fp Footprint, context Context, r rune) rune {
 			return 'Z'
 		}
 		return 'z'
+	case 'π', 'Π':
+		if isUpperSize(fp, context) {
+			return 'Π'
+		}
+		return 'π'
 	}
 
 	return r

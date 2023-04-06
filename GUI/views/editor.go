@@ -44,15 +44,16 @@ func (ed *Editor) Layout(gtx C) D {
 		r, onlyLastUsed := rec.Identify(ed.store, ed.wb.Context())
 		ed.matched = r
 
+		fmt.Println("compound status", onlyLastUsed)
 		fmt.Println(rec)
 
 		// drop the old strokes when we are sure they
 		// are not part of a compound symbol
 		switch onlyLastUsed {
-		case la.Whole: // nothing to do
-		case la.LastOrMore: // keep the last
+		case la.KeepAll: // nothing to do
+		case la.KeepLast: // keep the last
 			ed.wb.DropButLast()
-		case la.LastAndSealed:
+		case la.RemoveAll: // keep nothing
 			ed.wb.Reset()
 		}
 	}

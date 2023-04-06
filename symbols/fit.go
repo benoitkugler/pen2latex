@@ -530,7 +530,14 @@ func mergeSimilarCurves(curves []Bezier) (out []Bezier) {
 			// no merging : add the last element
 			out = append(out, currentCurve)
 		}
+	}
 
+	// remove spurious curvature at start and end
+	if replacement, ok := out[0].hasSpuriousCurvature(); ok {
+		out[0] = replacement
+	}
+	if replacement, ok := out[len(out)-1].hasSpuriousCurvature(); ok {
+		out[len(out)-1] = replacement
 	}
 
 	return

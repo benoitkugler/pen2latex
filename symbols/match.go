@@ -5,13 +5,15 @@ import (
 	"strings"
 )
 
-const debugMode = true
+const debugMode = false
 
 // [Lookup] performs approximate matching by finding
 // the closest symbol to [input] in the database and returning its rune.
 //
 // It will return 0 if the store is empty or if no symbol matches [input].
-// It also returns the best error found.
+// It returns the best error found.
+// It also returns a bool indicating if the input is compatible with an other
+// input, in the sense that the first strokes are close.
 //
 // # Matching overview
 //
@@ -20,29 +22,40 @@ const debugMode = true
 //   - for each [Shape] in the record, segment it into Bezier curves, yielding a [ShapeFootprint]
 //   - for each symbol entry in the database, compute the distance between its footprint and the input
 //   - disambiguate results using the size of the surrounding context
-func (db *Store) Lookup(input Footprint, context Context) (rune, Fl) {
+func (db *Store) Lookup(input Footprint, context Context) (rune, Fl, bool) {
 	var (
-		bestIndex    int = -1
-		bestDistance     = Inf
+		bestIndex                            int = -1
+		bestDistance, bestDistanceCompatible     = Inf, Inf
 	)
 
 	for i, entry := range db.Symbols {
-		distance := distanceSymbols(entry.Footprint, input)
-		if distance < bestDistance {
-			bestDistance = distance
+		distExact := distanceSymbolsExact(entry.Footprint, input)
+		if distExact < bestDistance {
+			bestDistance = distExact
 			bestIndex = i
+		}
+		// inspect the symbols in the store with more strokes
+		if len(entry.Footprint.Strokes) > len(input.Strokes) {
+			if d := distanceSymbolsCompatible(entry.Footprint, input); d < bestDistanceCompatible {
+				bestDistanceCompatible = d
+			}
 		}
 	}
 
+	fmt.Println(bestDistanceCompatible, 2*bestDistance)
+	hasCompatible := bestDistanceCompatible < Inf && bestDistanceCompatible < 2*bestDistance
+
 	if bestIndex == -1 {
-		return 0, Inf
+		return 0, Inf, hasCompatible
 	}
 
 	r, d := db.Symbols[bestIndex].R, bestDistance
 	r = distinguishByContext(input, context, r)
 
-	return r, d
+	return r, d, hasCompatible
 }
+
+// ---------------------------------------------------------------------------
 
 // Footprint builds the footprint of the symbol
 func (sy Symbol) Footprint() Footprint { return newSymbolFootprint(sy) }
@@ -337,7 +350,8 @@ func (sf Footprint) BoundingBox() Rect {
 	return out
 }
 
-func distanceSymbols(store, input Footprint) Fl {
+// assuming len(store) > len(input), only compares the first common strokes
+func distanceSymbolsCompatible(store, input Footprint) Fl {
 	nbStrokes := len(input.Strokes)
 
 	// use the same number of components as the input
@@ -359,10 +373,12 @@ func distanceStrokes(s1, s2 []Stroke) Fl {
 			fmt.Println("Distance between stroke (regular)")
 		}
 		d1 := distanceFootprintNoScale(fpU, fpV)
+
 		if debugMode {
 			fmt.Println("Distance between stroke (reversed)")
 		}
 		d2 := distanceFootprintNoScale(fpU.reverse(), fpV)
+
 		d := Min(d1, d2)
 
 		totalDistance += d

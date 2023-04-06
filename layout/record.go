@@ -58,10 +58,23 @@ func closestPointDistance(u, v sy.Shape) Fl {
 type CompoundStatus uint8
 
 const (
-	Whole         CompoundStatus = iota // the whole symbol has been used
-	LastOrMore                          // only the last stroke has been used, but this stroke may be part of a symbol
-	LastAndSealed                       // only the last stroke has been used, and we are certain no more strokes may come
+	KeepAll   CompoundStatus = iota // the whole symbol has been used, and may still be needed
+	KeepLast                        // only the last stroke has been used, but this stroke may be part of a symbol
+	RemoveAll                       // only the last stroke has been used, and we are certain no more strokes may come
 )
+
+func (c CompoundStatus) String() string {
+	switch c {
+	case KeepAll:
+		return "KeepAll"
+	case KeepLast:
+		return "KeepLast"
+	case RemoveAll:
+		return "RemoveAll"
+	default:
+		panic("exhaustive switch")
+	}
+}
 
 // Identify returns true if only the last [Stroke] of the symbol is used.
 func (rec Record) Identify(store *sy.Store, context sy.Context) (rune, CompoundStatus) {
@@ -69,7 +82,7 @@ func (rec Record) Identify(store *sy.Store, context sy.Context) (rune, CompoundS
 
 	// start with special cases
 	if last.IsSqrt() {
-		return '\u221A', LastAndSealed // √
+		return '\u221A', RemoveAll // √
 	}
 
 	if toMatch, ok := rec.isSeparated(); ok { // easy case : only use the last stroke
@@ -78,8 +91,11 @@ func (rec Record) Identify(store *sy.Store, context sy.Context) (rune, CompoundS
 			fmt.Println("Identify record : isSeparated -> last stroke matched")
 		}
 
-		r, _ := store.Lookup(toMatch.Footprint(), context)
-		return r, LastOrMore
+		r, _, isCompatible := store.Lookup(toMatch.Footprint(), context)
+		if isCompatible {
+			return r, KeepLast
+		}
+		return r, RemoveAll
 	}
 	// here, len(rec) > 1
 	previousFooprint, lastFootprint := sy.Footprint{Strokes: previous}, sy.Footprint{Strokes: []sy.Stroke{last}}
@@ -90,8 +106,11 @@ func (rec Record) Identify(store *sy.Store, context sy.Context) (rune, CompoundS
 			fmt.Println("Identify record : isMerged -> whole symbol matched")
 		}
 
-		r, _ := store.Lookup(wholeFootprint, context)
-		return r, Whole
+		r, _, isCompatible := store.Lookup(wholeFootprint, context)
+		if isCompatible {
+			return r, KeepAll
+		}
+		return r, RemoveAll
 	}
 
 	// special case for points
@@ -99,15 +118,14 @@ func (rec Record) Identify(store *sy.Store, context sy.Context) (rune, CompoundS
 		if point, ok := last.Curves[0].IsPoint(); ok {
 			// decide to match the whole symbol base on the X value
 			bbox := previousFooprint.BoundingBox()
-			fmt.Println("point, ", bbox.LR.X, point.X)
 			if bbox.LR.X+2 >= point.X {
 
 				if debugMode {
 					fmt.Println("Identify record : point -> whole symbol matched")
 				}
 
-				r, _ := store.Lookup(wholeFootprint, context)
-				return r, Whole
+				r, _, _ := store.Lookup(wholeFootprint, context)
+				return r, KeepAll
 			}
 		}
 	}
@@ -118,11 +136,11 @@ func (rec Record) Identify(store *sy.Store, context sy.Context) (rune, CompoundS
 	// to disambiguate, we perform two lookups and compare errors
 
 	// lookup with the whole symbol
-	rWhole, errWhole := store.Lookup(wholeFootprint, context)
+	rWhole, errWhole, isWholeCompatible := store.Lookup(wholeFootprint, context)
 
 	// lookup with separated symbol
-	_, errPrevious := store.Lookup(previousFooprint, context)
-	rLast, errLast := store.Lookup(lastFootprint, context)
+	_, errPrevious, _ := store.Lookup(previousFooprint, context)
+	rLast, errLast, isLastCompatible := store.Lookup(lastFootprint, context)
 
 	// fmt.Println(errPrevious, errLast, errWhole)
 
@@ -133,14 +151,23 @@ func (rec Record) Identify(store *sy.Store, context sy.Context) (rune, CompoundS
 			fmt.Println("Identify record : after lookup -> last stroke matched")
 		}
 
-		return rLast, LastOrMore
+		if isWholeCompatible { // even is we prefer the last for now, keep the previous strokes
+			return rLast, KeepAll
+		}
+		if isLastCompatible {
+			return rLast, KeepLast
+		}
+		return rLast, RemoveAll
 	}
 
 	if debugMode {
 		fmt.Println("Identify record : after lookup -> whole stroke matched")
 	}
 
-	return rWhole, Whole
+	if isWholeCompatible {
+		return rWhole, KeepAll
+	}
+	return rWhole, RemoveAll
 }
 
 // return true if the last stroke has one intersection

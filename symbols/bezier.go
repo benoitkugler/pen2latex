@@ -167,6 +167,47 @@ func (U Bezier) IsPoint() (Pos, bool) {
 	return U.P0, U.P0 == U.P1 && U.P1 == U.P2 && U.P2 == U.P3
 }
 
+func (be *Bezier) normalizeCurvature(curvature Fl) Fl {
+	ref := be.P0.Sub(be.P3).NormSquared()
+	// curvature evolves as 1/ \lambda^2
+	return abs(curvature * ref)
+}
+
+func (U Bezier) hasSpuriousCurvature() (Bezier, bool) {
+	center, cos, sin := U.normalize()
+
+	// spurious curvatures comes from artificial back and forth
+	// fitted by a control point almost aligned with the segment, but ouside
+
+	critics := U.criticalPointsX()
+
+	const curvatureThreshold = 2000
+
+	var out bool
+	if x := U.P1.X; x < U.P0.X && len(critics) != 0 {
+		t := critics[0]
+		if c := U.normalizeCurvature(U.curvatureAt(t)); c > curvatureThreshold {
+			U.P1.X = 2*U.P0.X - x
+			out = true
+		}
+	}
+	if x := U.P2.X; x > U.P3.X && len(critics) != 0 {
+		t := critics[len(critics)-1]
+		// use curvature to decide if the curve is spurious or not
+		if c := U.normalizeCurvature(U.curvatureAt(t)); c > curvatureThreshold {
+			U.P2.X = 2*U.P3.X - x
+			out = true
+		}
+	}
+
+	// normalize back
+	cosI, sinI := cos, -sin
+	U.rotate(cosI, sinI)
+	U.translate(center)
+
+	return U, out
+}
+
 // IsRoughlyLinear returns true for curves that could
 // be approximated by a segment, for collisions purposes
 func (U Bezier) IsRoughlyLinear() bool {
@@ -174,12 +215,14 @@ func (U Bezier) IsRoughlyLinear() bool {
 }
 
 // assume control points are inside the edges
-// return a normalized value, tpycally under 0.1 for lines
+// return a normalized value, usually under 0.1 for lines
 // returns Inf if it can't be a line
 func (U Bezier) diffWithLine() Fl {
 	U.normalize()
 
-	if U.P1.X < U.P1.X || U.P2.X > U.P3.X {
+	width := U.P3.X
+	const tolerance = 0.1
+	if U.P1.X < U.P0.X-width*tolerance || U.P2.X > U.P3.X+width*tolerance {
 		return Inf
 	}
 
@@ -203,21 +246,30 @@ func areTangentsAligned(c1, c2 Bezier) bool {
 	return abs(angle(d1, d2)) < 5
 }
 
+func (b *Bezier) translate(p Pos) {
+	b.P0 = b.P0.Add(p)
+	b.P1 = b.P1.Add(p)
+	b.P2 = b.P2.Add(p)
+	b.P3 = b.P3.Add(p)
+}
+
+func (b *Bezier) rotate(cos, sin Fl) {
+	b.P0.rotate(cos, sin)
+	b.P1.rotate(cos, sin)
+	b.P2.rotate(cos, sin)
+	b.P3.rotate(cos, sin)
+}
+
 // translate and rotate so that P0 = 0, P3.Y = 0, P3.X > 0
 func (b *Bezier) normalize() (center Pos, c, s Fl) {
 	// shift to (0,0)
 	center = b.P0
-	b.P0 = b.P0.Sub(center)
-	b.P1 = b.P1.Sub(center)
-	b.P2 = b.P2.Sub(center)
-	b.P3 = b.P3.Sub(center)
+	b.translate(center.ScaleTo(-1))
 
 	// rotate
 	theta := math.Atan2(float64(b.P3.Y), float64(b.P3.X))
 	c, s = Fl(math.Cos(-theta)), Fl(math.Sin(-theta))
-	b.P1.rotate(c, s)
-	b.P2.rotate(c, s)
-	b.P3.rotate(c, s)
+	b.rotate(c, s)
 
 	return
 }
@@ -246,6 +298,16 @@ func quadraticRoots(a, b, c Fl) []Fl {
 	}
 
 	return out
+}
+
+func (b Bezier) criticalPointsX() []Fl {
+	p0, p1, p2, p3 := b.P0, b.P1, b.P2, b.P3
+	q0, q1, q2 := p1.Sub(p0), p2.Sub(p1), p3.Sub(p2)
+	A := q0.Sub(q1.ScaleTo(2)).Add(q2)
+	B := q1.Sub(q0).ScaleTo(2)
+	C := q0
+
+	return quadraticRoots(A.X, B.X, C.X)
 }
 
 func (b Bezier) criticalPointsY() []Fl {
@@ -277,12 +339,10 @@ func (be Bezier) hasRoughEndAngle() (Fl, bool) {
 		t = Max(t, ts[1])
 	}
 
-	ref := be.P0.Sub(be.P3).NormSquared()
-	curvature := be.curvatureAt(t) // evolves as 1/ \lambda^2
-	curvatureNormalized := abs(curvature * ref)
+	curvature := be.normalizeCurvature(be.curvatureAt(t))
 	const threshold = 1000
 
-	if curvatureNormalized > threshold {
+	if curvature > threshold {
 		return t, true
 	}
 

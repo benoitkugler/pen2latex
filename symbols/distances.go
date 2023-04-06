@@ -57,6 +57,7 @@ func (U Bezier) distance(V Bezier) Fl {
 		t := Fl(t) / 20
 
 		dd := U.pointAt(t).Sub(V.pointAt(t)).NormSquared()
+
 		cd := abs(U.curvatureAt(t) - V.curvatureAt(t))
 		du, dv := U.derivativeAt(t), V.derivativeAt(t)
 		du.normalize()
@@ -86,7 +87,7 @@ func (U Bezier) distance(V Bezier) Fl {
 		0.05*(U.P1.Sub(V.P1).NormSquared()+U.P2.Sub(V.P2).NormSquared())
 	distanceControls /= 16
 
-	// fmt.Println(derivativeDiff*10, curvatureDiff, distancePointDiff, distanceControls, penalityRatio)
+	// fmt.Println("Bezier distance :", derivativeDiff*10, curvatureDiff, distancePointDiff, distanceControls, penalityRatio)
 
 	return (derivativeDiff*10 + curvatureDiff + distancePointDiff + distanceControls) * penalityRatio
 }

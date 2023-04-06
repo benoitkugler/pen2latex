@@ -190,9 +190,9 @@ type storeCreation struct {
 	resetButton widget.Clickable
 }
 
-// var requiredRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_×+-∈Σℝ")
+var requiredRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_×+-=()[]∈Σℝπ")
 
-var requiredRunes = []rune("abcdefxySoit()123_∈Σℝ")
+// var requiredRunes = []rune("abcdefxySoit()123_∈Σℝ")
 
 // var requiredRunes = []rune("a")
 
