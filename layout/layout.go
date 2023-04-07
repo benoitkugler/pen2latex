@@ -16,51 +16,77 @@ const (
 	EMBaselineRatio float32 = 0.66 // from the top
 )
 
-// Scope is an area in the editor where potential new
-// symbols may be drawn. The area is never empty :
-// it contains already written input or a blank area
-// if the input is empty.
-type Scope = sy.Rect
-
-// Grapheme is one symbol input, with its resolved Unicode value
-type Grapheme struct {
-	Symbol sy.Symbol
+// grapheme is one symbol input, with its resolved Unicode value
+type grapheme struct {
+	Symbol sy.Footprint
 	Char   rune // the resolved rune for the symbol
 }
 
-func (nc *Grapheme) Content() *Grapheme { return nc }
+func (nc grapheme) Grapheme() grapheme { return nc }
 
 // block is a component of an [Expression] coming
 // from a symbol (such as a letter, a digit, a math operator),
 // and including potential children.
 type block interface {
-	// Content returns the main grapheme for the block,
+	// Grapheme returns the main grapheme for the block,
 	// which usually has the visual appearence of the block with empty
 	// children.
-	Content() *Grapheme
+	Grapheme() grapheme
 
 	// Children returns a list of the children nodes, which are
 	// always valid pointer, but possibly empty nodes.
 	Children() []*Node
 
-	// Scopes returns a list of the children scopes, in the same order
-	// as [Children]
-	Scopes() []Scope
-
 	// laTeX returns the LaTeX code for this block and its children
 	laTeX() string
+}
+
+func blockBox(bl block, includeMargin bool) sy.Rect {
+	own := bl.Grapheme().Symbol.BoundingBox()
+	for _, child := range bl.Children() {
+		childContext := child.context(includeMargin)
+		own.Union(childContext.Box)
+	}
+	return own
 }
 
 // Node represents one level of an expression.
 // An empty node is used when no symbols have been written yet.
 type Node struct {
-	Blocks []block
+	minBox   sy.Rect
+	baseline sy.Fl
+
+	blocks []block
+}
+
+func newNode(box sy.Rect, baseline Fl) *Node {
+	return &Node{minBox: box, baseline: baseline}
+}
+
+// include the potential children
+// if includeMargin is true, the minimal box is used, and margin after the children is added
+func (n *Node) context(includeMargin bool) sy.Context {
+	// compute the union of the children
+	childrenBbox := sy.EmptyRect()
+	for _, block := range n.blocks {
+		box := blockBox(block, includeMargin)
+		childrenBbox.Union(box)
+	}
+
+	if includeMargin {
+		// and add margin for new inputs
+		childrenBbox.LR.X += EMWidth
+		// make sure it includes at least minBox
+		childrenBbox.Union(n.minBox)
+	}
+
+	return sy.Context{Box: childrenBbox, Baseline: n.baseline}
 }
 
 // return the concatenation of the latex for each block
 func (n *Node) latex() string {
-	chunks := make([]string, len(n.Blocks))
-	for i, b := range n.Blocks {
+	chunks := make([]string, len(n.blocks))
+	for i, b := range n.blocks {
 		chunks[i] = b.laTeX()
 	}
 	return strings.Join(chunks, "")
@@ -68,36 +94,9 @@ func (n *Node) latex() string {
 
 // insertAt insert [bl] at Blocks[index]
 func (n *Node) insertAt(bl block, index int) {
-	n.Blocks = append(n.Blocks, nil /* use the zero value of the element type */)
-	copy(n.Blocks[index+1:], n.Blocks[index:])
-	n.Blocks[index] = bl
-}
-
-// returns EmptyRect if n is empty
-func (n *Node) extendedBox() (withScopes, withoutScopes sy.Rect) {
-	withScopes = sy.EmptyRect()
-	withoutScopes = sy.EmptyRect()
-	for _, char := range n.Blocks {
-		withS, withoutS := extendedBox(char)
-		withScopes.Union(withS)
-		withScopes.Union(withoutS)
-	}
-	return
-}
-
-// extendedBox return the extended bounding box,
-// including the glyph and its children, with and without their SCOPES
-func extendedBox(ch block) (withScopes, withoutScopes sy.Rect) {
-	own := ch.Content().Symbol.Union().BoundingBox()
-	withScopes = own
-	withoutScopes = own
-	scopes := ch.Scopes()
-	for i, child := range ch.Children() {
-		_, withoutS := child.extendedBox()
-		withScopes.Union(scopes[i])
-		withoutScopes.Union(withoutS)
-	}
-	return
+	n.blocks = append(n.blocks, nil /* use the zero value of the element type */)
+	copy(n.blocks[index+1:], n.blocks[index:])
+	n.blocks[index] = bl
 }
 
 // Line represents one line of text, wrote
@@ -106,14 +105,18 @@ type Line struct {
 	root Node
 	// To handle Symbols made of several Shapes,
 	// cursor stores the current Grapheme
-	cursor *Grapheme
+	// cursor *grapheme
 }
 
-func (li *Line) Symbols() (out []sy.Symbol) {
+func NewLine(rect sy.Rect) *Line {
+	return &Line{root: *newNode(rect, baselineFromRect(rect))}
+}
+
+func (li *Line) Symbols() (out []sy.Footprint) {
 	var aux func(node *Node)
 	aux = func(node *Node) {
-		for _, char := range node.Blocks {
-			out = append(out, char.Content().Symbol)
+		for _, char := range node.blocks {
+			out = append(out, char.Grapheme().Symbol)
 			for _, child := range char.Children() {
 				aux(child)
 			}
@@ -125,21 +128,21 @@ func (li *Line) Symbols() (out []sy.Symbol) {
 	return out
 }
 
-func (li *Line) Scopes() (out []Scope) {
-	var aux func(node *Node)
-	aux = func(node *Node) {
-		for _, char := range node.Blocks {
-			out = append(out, char.Scopes()...)
-			for _, child := range char.Children() {
-				aux(child)
-			}
-		}
-	}
+// func (li *Line) Scopes() (out []Scope) {
+// 	var aux func(node *Node)
+// 	aux = func(node *Node) {
+// 		for _, char := range node.blocks {
+// 			out = append(out, char.Scopes()...)
+// 			for _, child := range char.Children() {
+// 				aux(child)
+// 			}
+// 		}
+// 	}
 
-	aux(&li.root)
+// 	aux(&li.root)
 
-	return out
-}
+// 	return out
+// }
 
 // LaTeX returns the LaTeX code deduced from the current drawings
 func (li *Line) LaTeX() string { return li.root.latex() }
@@ -155,9 +158,27 @@ var (
 // regularChar is a simple character which
 // has the two default scopes: indice and exponent
 type regularChar struct {
-	Grapheme
+	grapheme
 
 	indice, exponent *Node
+}
+
+func newRegularChar(gr grapheme) *regularChar {
+	bb := gr.Symbol.BoundingBox()
+	xLeft := bb.LR.X - 0.1*bb.Width()
+
+	// the height is fixed to a proportion of the EM square
+	height := EMHeight * 0.4
+
+	// adjust the baseline of the exponent scope to the height of the char
+	baselineExponent := bb.UL.Y
+	exponent := rectForBaseline(xLeft, EMWidth, height, baselineExponent)
+
+	// adjust the baseline of the indice scope just under the char
+	baselineIndice := bb.LR.Y + 0.1*EMHeight
+	indice := rectForBaseline(xLeft, EMWidth, height, baselineIndice)
+
+	return &regularChar{grapheme: gr, exponent: newNode(exponent, baselineExponent), indice: newNode(indice, baselineIndice)}
 }
 
 func (r *regularChar) Children() []*Node { return []*Node{r.indice, r.exponent} }
@@ -171,37 +192,12 @@ func rectForBaseline(x, width, height, baseline float32) sy.Rect {
 	}
 }
 
-// Scopes return two scopes : the indice area and
-// the exponent area
-func (r *regularChar) Scopes() []Scope {
-	u := r.Grapheme.Symbol.Union()
-	bb := u.BoundingBox()
-	xLeft := bb.LR.X - 0.1*bb.Width()
-
-	// the height is fixed to a proportion of the EM square
-	height := EMHeight * 0.4
-
-	// enlarge by the current exponent bbox width
-	exponentWith := EMWidth
-	if expBB, _ := r.exponent.extendedBox(); !expBB.IsEmpty() {
-		exponentWith += bb.Width()
-	}
-	// adjust the baseline of the exponent scope to the height of the char
-	exponent := rectForBaseline(xLeft, exponentWith, height, bb.UL.Y)
-
-	// enlarge by the current indice bbox width
-	indiceWith := EMWidth
-	if expBB, _ := r.indice.extendedBox(); !expBB.IsEmpty() {
-		indiceWith += bb.Width()
-	}
-	// adjust the baseline of the indice scope just under the char
-	indice := rectForBaseline(xLeft, indiceWith, height, bb.LR.Y+0.1*EMHeight)
-
-	return []Scope{indice, exponent}
+func baselineFromRect(r sy.Rect) Fl {
+	return r.UL.Y + r.Height()*EMBaselineRatio
 }
 
 func (r regularChar) laTeX() string {
-	out := string(r.Grapheme.Char)
+	out := string(r.grapheme.Char)
 	indice := r.indice.latex()
 	exponent := r.exponent.latex()
 	if indice != "" {
@@ -214,35 +210,31 @@ func (r regularChar) laTeX() string {
 }
 
 type fracOperator struct {
-	Grapheme
+	grapheme
 
 	num, den *Node
 }
 
-func (f *fracOperator) Children() []*Node { return []*Node{f.num, f.den} }
-
-func (f fracOperator) Scopes() []Scope {
+func newfracOperator(gr grapheme) *fracOperator {
 	// the width is given by the fraction itself
 
-	bbox := f.Grapheme.Symbol.Union().BoundingBox()
+	bbox := gr.Symbol.BoundingBox()
 	fracTop, fracBottom := bbox.UL.Y, bbox.LR.Y
 
 	// enlarge the num height
 	numHeight := EMHeight * 0.9
-	if numBB, _ := f.num.extendedBox(); !numBB.IsEmpty() {
-		numHeight = numBB.Height() + 0.1*EMHeight
-	}
-	num := Scope{UL: sy.Pos{X: bbox.UL.X, Y: fracTop - numHeight}, LR: sy.Pos{X: bbox.LR.X, Y: fracTop}}
+	numBox := sy.Rect{UL: sy.Pos{X: bbox.UL.X, Y: fracTop - numHeight}, LR: sy.Pos{X: bbox.LR.X, Y: fracTop}}
+	numBaseline := baselineFromRect(numBox)
 
 	// enlarge the den height
 	denHeight := EMHeight * 0.9
-	if denBB, _ := f.den.extendedBox(); !denBB.IsEmpty() {
-		denHeight = denBB.Height() + 0.1*EMHeight
-	}
-	den := Scope{UL: sy.Pos{X: bbox.UL.X, Y: fracBottom}, LR: sy.Pos{X: bbox.LR.X, Y: fracBottom + denHeight}}
+	denBox := sy.Rect{UL: sy.Pos{X: bbox.UL.X, Y: fracBottom}, LR: sy.Pos{X: bbox.LR.X, Y: fracBottom + denHeight}}
+	denBaseline := baselineFromRect(denBox)
 
-	return []Scope{num, den}
+	return &fracOperator{grapheme: gr, num: newNode(numBox, numBaseline), den: newNode(denBox, denBaseline)}
 }
+
+func (f *fracOperator) Children() []*Node { return []*Node{f.num, f.den} }
 
 func (r fracOperator) laTeX() string {
 	num, den := r.num.latex(), r.den.latex()
@@ -250,18 +242,13 @@ func (r fracOperator) laTeX() string {
 }
 
 type sumOperator struct {
-	Grapheme
+	grapheme
 
 	from, to *Node
 	content  *Node
 }
 
 func (s *sumOperator) Children() []*Node { return []*Node{s.from, s.to, s.content} }
-
-func (sumOperator) Scopes() []Scope {
-	// TODO:
-	return nil
-}
 
 // TODO:
 func (r sumOperator) laTeX() string { return "" }
@@ -270,22 +257,12 @@ type prodOperator sumOperator
 
 func (p *prodOperator) Children() (out []*Node) { return (*sumOperator)(p).Children() }
 
-func (prodOperator) Scopes() []Scope {
-	// TODO:
-	return nil
-}
-
 // TODO:
 func (r prodOperator) laTeX() string { return "" }
 
 type integralOperator sumOperator
 
 func (p *integralOperator) Children() (out []*Node) { return (*sumOperator)(p).Children() }
-
-func (integralOperator) Scopes() []Scope {
-	// TODO:
-	return nil
-}
 
 // TODO:
 func (r integralOperator) laTeX() string { return "" }

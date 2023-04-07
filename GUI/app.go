@@ -72,8 +72,9 @@ func Run(w *app.Window) error {
 
 	var homeMenu menu
 
-	editor := views.NewEditor(&store, th)
 	symbols := views.NewStore(&store, th)
+	sandbox := views.NewSandbox(&store, th)
+	editor := views.NewEditor(&store, th)
 
 	view := viewHome
 
@@ -85,13 +86,17 @@ func Run(w *app.Window) error {
 			saveStore(store)
 			return e.Err
 		case system.FrameEvent:
-			if homeMenu.editorBtn.Clicked() {
-				view = viewEditor
-			} else if homeMenu.tableBtn.Clicked() {
+			if homeMenu.sandboxBtn.Clicked() {
+				view = viewSandbox
+			} else if homeMenu.symbolsBtn.Clicked() {
 				view = viewSymbols
+			} else if homeMenu.editorBtn.Clicked() {
+				view = viewEditor
 			} else if symbols.BackButton.Clicked() {
 				view = viewHome
 			} else if editor.BackButton.Clicked() {
+				view = viewHome
+			} else if sandbox.BackButton.Clicked() {
 				view = viewHome
 			}
 
@@ -100,10 +105,12 @@ func Run(w *app.Window) error {
 			switch view {
 			case viewHome:
 				homeMenu.layout(gtx, th)
-			case viewEditor:
-				editor.Layout(gtx)
 			case viewSymbols:
 				symbols.Layout(gtx)
+			case viewEditor:
+				editor.Layout(gtx)
+			case viewSandbox:
+				sandbox.Layout(gtx)
 			}
 
 			e.Frame(gtx.Ops)
@@ -116,6 +123,7 @@ const (
 	viewHome = iota
 	viewSymbols
 	viewEditor
+	viewSandbox
 )
 
 func withPadding(w layout.Widget) layout.Widget {
@@ -130,8 +138,9 @@ func withPadding(w layout.Widget) layout.Widget {
 }
 
 type menu struct {
-	tableBtn  widget.Clickable
-	editorBtn widget.Clickable
+	symbolsBtn widget.Clickable
+	editorBtn  widget.Clickable
+	sandboxBtn widget.Clickable
 }
 
 func (menu *menu) layout(gtx C, th *material.Theme) {
@@ -147,11 +156,13 @@ func (menu *menu) layout(gtx C, th *material.Theme) {
 		Spacing: layout.SpaceStart,
 	}.Layout(gtx,
 		layout.Rigid(withPadding(func(gtx C) D {
-			return material.Button(th, &menu.tableBtn, "Editer la table des caractères...").Layout(gtx)
-		}),
-		),
+			return material.Button(th, &menu.symbolsBtn, "Editer la table des caractères...").Layout(gtx)
+		})),
 		layout.Rigid(withPadding(func(gtx C) D {
 			return material.Button(th, &menu.editorBtn, "Rédiger...").Layout(gtx)
+		})),
+		layout.Rigid(withPadding(func(gtx C) D {
+			return material.Button(th, &menu.sandboxBtn, "Tester la reconnaissance...").Layout(gtx)
 		})),
 	)
 }

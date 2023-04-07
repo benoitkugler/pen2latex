@@ -15,7 +15,7 @@ func TestNode_insertAt(t *testing.T) {
 	}
 	for _, tt := range tests {
 		n := &Node{
-			Blocks: tt.fields,
+			blocks: tt.fields,
 		}
 		n.insertAt(tt.bl, tt.index)
 	}
