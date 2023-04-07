@@ -5,6 +5,13 @@ package symbols
 // sqrt : √ U+221A
 // fraction bar
 
+func (fp Stroke) IsPoint() (Pos, bool) {
+	if len(fp.Curves) != 1 {
+		return Pos{}, false
+	}
+	return fp.Curves[0].IsPoint()
+}
+
 func (fp Stroke) IsLine() bool {
 	return len(fp.Curves) == 1 && fp.Curves[0].IsRoughlyLinear()
 }
@@ -17,6 +24,10 @@ func (fp Stroke) IsSqrt() bool {
 
 	last := fp.Curves[len(fp.Curves)-1]
 	if !last.IsRoughlyLinear() {
+		return false
+	}
+	// check that the line is roughly horizontal
+	if a := abs(angle(Pos{1, 0}, last.P3.Sub(last.P0))); a >= 10 {
 		return false
 	}
 

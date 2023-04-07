@@ -79,10 +79,29 @@ func (c CompoundStatus) String() string {
 // Identify returns true if only the last [Stroke] of the symbol is used.
 func (rec Record) Identify(store *sy.Store, context sy.Context) (rune, CompoundStatus) {
 	wholeFootprint, previous, last := rec.footprints()
+	previousFooprint, lastFootprint := sy.Footprint{Strokes: previous}, sy.Footprint{Strokes: []sy.Stroke{last}}
 
 	// start with special cases
 	if last.IsSqrt() {
 		return '\u221A', RemoveAll // √
+	}
+
+	// special case for points
+	if point, ok := last.IsPoint(); ok {
+		// decide to match the whole symbol base on the X value
+		bbox := previousFooprint.BoundingBox()
+		if bbox.LR.X+2 >= point.X {
+
+			if debugMode {
+				fmt.Println("Identify record : point -> whole symbol matched")
+			}
+
+			r, _, _ := store.Lookup(wholeFootprint, context)
+			return r, KeepAll
+		}
+
+		// standalone point
+		return '.', RemoveAll
 	}
 
 	if toMatch, ok := rec.isSeparated(); ok { // easy case : only use the last stroke
@@ -97,9 +116,8 @@ func (rec Record) Identify(store *sy.Store, context sy.Context) (rune, CompoundS
 		}
 		return r, RemoveAll
 	}
-	// here, len(rec) > 1
-	previousFooprint, lastFootprint := sy.Footprint{Strokes: previous}, sy.Footprint{Strokes: []sy.Stroke{last}}
 
+	// here, len(rec) > 1
 	if isMerged(previous, last) {
 
 		if debugMode {
@@ -111,23 +129,6 @@ func (rec Record) Identify(store *sy.Store, context sy.Context) (rune, CompoundS
 			return r, KeepAll
 		}
 		return r, RemoveAll
-	}
-
-	// special case for points
-	if len(last.Curves) == 1 {
-		if point, ok := last.Curves[0].IsPoint(); ok {
-			// decide to match the whole symbol base on the X value
-			bbox := previousFooprint.BoundingBox()
-			if bbox.LR.X+2 >= point.X {
-
-				if debugMode {
-					fmt.Println("Identify record : point -> whole symbol matched")
-				}
-
-				r, _, _ := store.Lookup(wholeFootprint, context)
-				return r, KeepAll
-			}
-		}
 	}
 
 	// here we are not sure : it could be two distinct symbols

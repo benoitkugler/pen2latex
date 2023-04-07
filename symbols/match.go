@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-const debugMode = false
+const debugMode = true
 
 // [Lookup] performs approximate matching by finding
 // the closest symbol to [input] in the database and returning its rune.
@@ -124,13 +124,6 @@ func (fp Stroke) controlBox() Rect {
 	return re
 }
 
-func (fp Stroke) IsPoint() (Pos, bool) {
-	if len(fp.Curves) != 1 {
-		return Pos{}, false
-	}
-	return fp.Curves[0].IsPoint()
-}
-
 func (fp Stroke) String() string {
 	curves := make([]string, len(fp.Curves))
 	for i, c := range fp.Curves {
@@ -199,7 +192,7 @@ func distanceFootprintNoScale(U, V Stroke) Fl {
 		d := c1.distance(c2)
 		length := c1.arcLength()
 
-		// fmt.Println(d, length)
+		fmt.Println("Curve", i, d, length)
 
 		totalDist += d * length
 		totalLength += length
@@ -393,6 +386,10 @@ func distanceSymbolsExact(U, V Footprint) Fl {
 	if len(U.Strokes) != len(V.Strokes) {
 		return Inf
 	}
+
+	aspectRatioU := U.BoundingBox().Width() / U.BoundingBox().Height()
+	aspectRatioV := V.BoundingBox().Width() / V.BoundingBox().Height()
+	fmt.Println(aspectRatioU, aspectRatioV)
 
 	// rescale U to V, with the same transformation for
 	// each shapes
