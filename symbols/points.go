@@ -101,7 +101,7 @@ func (r Rect) String() string {
 
 func (r Rect) IsEmpty() bool { return r == EmptyRect() }
 
-func (r Rect) contains(p Pos) bool {
+func (r Rect) Contains(p Pos) bool {
 	if r.IsEmpty() {
 		return false
 	}

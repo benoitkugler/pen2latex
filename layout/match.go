@@ -14,31 +14,31 @@ func (line *Line) FindContext(pos sy.Pos) sy.Context {
 
 // Insert finds the best place in [line] to insert [content],
 // and updates the line.
-func (line *Line) Insert(rec Record, db *sy.Store) (isCompound bool) {
+// It also returns how the current record should be updated.
+func (line *Line) Insert(rec Record, db *sy.Store) RecordAction {
 	// find the correct scope
 	_, last := rec.split()
 	node, insertPos := line.findNode(last.BoundingBox())
 	fmt.Printf("insert at index %v in node %p\n", insertPos, node)
 
-	// FIXME
-	// r, _ := rec.Identify(db, sy.Context{})
+	context := node.context(true)
+	r, action, isCompound := rec.Identify(db, context)
 
-	// if a compound symbol is matched, simply update the previous char
-	// TODO:
-	var symbol sy.Symbol
-	// if symbol.IsCompound() && line.cursor != nil {
-	// 	fmt.Println(r, string(r))
-	// 	*line.cursor = Grapheme{Char: r, Symbol: symbol}
-	// } else { // find the place to insert the new symbol
-	// 	// TODO:
-	// 	regChar := newBlock(r, symbol)
-	// 	node.insertAt(regChar, insertPos)
-	// 	line.cursor = regChar.Content()
-	// }
+	wholeSymbol, _, lastStroke := rec.footprints()
+
+	if isCompound {
+		// if a compound symbol is matched, simply update the previous char
+		gr := grapheme{Char: r, Symbol: wholeSymbol}
+		node.blocks[insertPos] = newRegularChar(gr)
+	} else {
+		gr := grapheme{Char: r, Symbol: sy.Footprint{Strokes: []sy.Stroke{lastStroke}}}
+		// add a new block
+		node.insertAt(newRegularChar(gr), insertPos)
+	}
 
 	fmt.Printf("root : %p ; tree : %v\n", &line.root, line.root)
 
-	return symbol.IsCompound()
+	return action
 }
 
 func newBlock(r rune, symbol sy.Footprint) block {
@@ -69,11 +69,11 @@ func (line *Line) findNode(glyph sy.Rect) (out *Node, index int) {
 			// select the correct scope inside the block
 			childBlock := n.blocks[index]
 			childNodes := childBlock.Children()
-			childScopes := make([]sy.Rect, len(childNodes))
+			childBoxes := make([]sy.Rect, len(childNodes))
 			for i, char := range childNodes {
-				boxes[i] = char.context(true).Box
+				childBoxes[i] = char.context(true).Box
 			}
-			if index := isRectInAreas(glyph, childScopes); index != -1 { // recurse on node
+			if index := isRectInAreas(glyph, childBoxes); index != -1 { // recurse on node
 				return aux(childNodes[index])
 			}
 
@@ -99,6 +99,10 @@ func (line *Line) findNode(glyph sy.Rect) (out *Node, index int) {
 func isRectInAreas(glyph sy.Rect, candidates []sy.Rect) int {
 	glyphArea := glyph.Area()
 	for index, candidate := range candidates {
+		if glyphArea == 0 && candidate.Contains(glyph.LR) {
+			return index
+		}
+
 		commonArea := candidate.Intersection(glyph).Area()
 		if commonArea/glyphArea >= 0.6 {
 			return index

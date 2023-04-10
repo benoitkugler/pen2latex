@@ -12,6 +12,7 @@ import (
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 	sh "github.com/benoitkugler/pen2latex/GUI/shared"
+	"github.com/benoitkugler/pen2latex/GUI/whiteboard"
 	la "github.com/benoitkugler/pen2latex/layout"
 	sy "github.com/benoitkugler/pen2latex/symbols"
 )
@@ -23,18 +24,21 @@ type Editor struct {
 	store *sy.Store
 
 	// BackButton is clicked to go back to the home view.
-	BackButton widget.Clickable
+	BackButton  widget.Clickable
+	resetButton widget.Clickable
 
 	// the tree storing the current user input
 	line *la.Line
 
-	// the current context
+	// the current context, diplayed with highlight
 	context sy.Context
+
+	rec la.Recorder
 }
 
 const (
 	width  = 600
-	height = 200
+	height = 100
 )
 
 func NewEditor(store *sy.Store, theme *material.Theme) *Editor {
@@ -42,10 +46,17 @@ func NewEditor(store *sy.Store, theme *material.Theme) *Editor {
 }
 
 func (ed *Editor) Layout(gtx C) D {
+	// event handling
+	if ed.resetButton.Clicked() {
+		ed.rec.Reset()
+		ed.line = la.NewLine(sy.Rect{sy.Pos{}, sy.Pos{width, height}})
+		ed.context = sy.Context{}
+	}
+
 	return layout.Flex{Axis: layout.Vertical, Spacing: layout.SpaceEvenly}.Layout(gtx,
 		layout.Rigid(ed.layoutLine),
 		layout.Rigid(material.Body1(ed.theme, fmt.Sprintf("Expression : %s", ed.line.LaTeX())).Layout),
-		// layout.Rigid(sh.WithPadding(10, sh.Button(ed.theme, &ed.resetButton, "Effacer", sh.NegativeAction).Layout)),
+		layout.Rigid(sh.WithPadding(10, sh.Button(ed.theme, &ed.resetButton, "Effacer", sh.NegativeAction).Layout)),
 		layout.Rigid(sh.WithPadding(10, material.Button(ed.theme, &ed.BackButton, "Retour").Layout)),
 	)
 }
@@ -72,6 +83,13 @@ func (ed *Editor) layoutLine(gtx C) D {
 				ed.context = ed.line.FindContext(sy.Pos{X: ev.Position.X, Y: ev.Position.Y})
 			case pointer.Leave:
 				ed.context = sy.Context{}
+			case pointer.Press:
+				ed.rec.StartShape()
+			case pointer.Release:
+				ed.rec.EndShape()
+				ed.onStroke()
+			case pointer.Drag:
+				ed.rec.AddToShape(sy.Pos{X: ev.Position.X, Y: ev.Position.Y})
 			}
 		}
 	}
@@ -80,13 +98,50 @@ func (ed *Editor) layoutLine(gtx C) D {
 	paint.FillShape(gtx.Ops, color.NRGBA{0xE0, 0xF2, 0xF1, 0xFF}, clip.Rect{Max: size}.Op())
 
 	// context
-	if !ed.context.Box.IsEmpty() {
-		box := rectToRect(ed.context.Box)
-		paint.FillShape(gtx.Ops, color.NRGBA{0xE0, 0xF8, 0xA1, 0xFF}, box.Op())
-		box.Min.Y = int(ed.context.Baseline)
-		box.Max.Y = int(ed.context.Baseline) + 1
-		paint.FillShape(gtx.Ops, color.NRGBA{10, 10, 0, 0xFF}, box.Op())
-	}
+	ed.drawContext(gtx)
+
+	// symbols
+	ed.drawSymbols(gtx)
+
+	// contexts, for debudding
+	ed.drawAllContexts(gtx)
 
 	return D{Size: size}
+}
+
+func (ed *Editor) onStroke() {
+	status := ed.line.Insert(ed.rec.Record, ed.store)
+	// update the recorder
+	switch status {
+	case la.KeepAll: // nothing to do
+	case la.KeepLast: // keep the last
+		ed.rec.DropButLast()
+	case la.RemoveAll: // keep nothing
+		ed.rec.Reset()
+	}
+}
+
+func (ed *Editor) drawContext(gtx C) {
+	if ed.context.Box.IsEmpty() {
+		return
+	}
+
+	box := rectToRect(ed.context.Box)
+	paint.FillShape(gtx.Ops, color.NRGBA{0xE0, 0xF8, 0xA1, 0xFF}, box.Op())
+	box.Min.Y = int(ed.context.Baseline)
+	box.Max.Y = int(ed.context.Baseline) + 1
+	paint.FillShape(gtx.Ops, color.NRGBA{10, 10, 0, 0xFF}, box.Op())
+}
+
+func (ed *Editor) drawAllContexts(gtx C) {
+	for _, rect := range ed.line.Contexts() {
+		box := rectToRect(rect)
+		paint.FillShape(gtx.Ops, color.NRGBA{0xE0, 0xF8, 20, 100}, box.Op())
+	}
+}
+
+func (ed *Editor) drawSymbols(gtx C) {
+	for _, fp := range ed.line.Symbols() {
+		whiteboard.DrawFootprint(gtx.Ops, fp, sy.Id)
+	}
 }

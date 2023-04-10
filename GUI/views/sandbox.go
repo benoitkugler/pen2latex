@@ -43,7 +43,7 @@ func (ed *Sandbox) Layout(gtx C) D {
 	if ok := ed.wb.HasNewShape(); ok {
 		// udapte the recognized rune
 		rec := ed.wb.Record()
-		r, onlyLastUsed := rec.Identify(ed.store, ed.wb.Context())
+		r, onlyLastUsed, _ := rec.Identify(ed.store, ed.wb.Context())
 		ed.matched = r
 
 		fmt.Println(rec)

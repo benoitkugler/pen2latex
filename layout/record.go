@@ -55,15 +55,15 @@ func closestPointDistance(u, v sy.Shape) Fl {
 	return sy.Sqrt(best)
 }
 
-type CompoundStatus uint8
+type RecordAction uint8
 
 const (
-	KeepAll   CompoundStatus = iota // the whole symbol has been used, and may still be needed
-	KeepLast                        // only the last stroke has been used, but this stroke may be part of a symbol
-	RemoveAll                       // only the last stroke has been used, and we are certain no more strokes may come
+	KeepAll   RecordAction = iota // the whole symbol has been used, and may still be needed
+	KeepLast                      // only the last stroke has been used, but this stroke may be part of a symbol
+	RemoveAll                     // only the last stroke has been used, and we are certain no more strokes may come
 )
 
-func (c CompoundStatus) String() string {
+func (c RecordAction) String() string {
 	switch c {
 	case KeepAll:
 		return "KeepAll"
@@ -76,14 +76,15 @@ func (c CompoundStatus) String() string {
 	}
 }
 
-// Identify returns true if only the last [Stroke] of the symbol is used.
-func (rec Record) Identify(store *sy.Store, context sy.Context) (rune, CompoundStatus) {
+// Identify returns the rune found, the action to perform on the
+// recorder, and a whether or not the symbol is compound
+func (rec Record) Identify(store *sy.Store, context sy.Context) (rune, RecordAction, bool) {
 	wholeFootprint, previous, last := rec.footprints()
 	previousFooprint, lastFootprint := sy.Footprint{Strokes: previous}, sy.Footprint{Strokes: []sy.Stroke{last}}
 
 	// start with special cases
 	if last.IsSqrt() {
-		return '\u221A', RemoveAll // √
+		return '\u221A', RemoveAll, false // √
 	}
 
 	// special case for points
@@ -97,11 +98,11 @@ func (rec Record) Identify(store *sy.Store, context sy.Context) (rune, CompoundS
 			}
 
 			r, _, _ := store.Lookup(wholeFootprint, context)
-			return r, KeepAll
+			return r, KeepAll, true
 		}
 
 		// standalone point
-		return '.', RemoveAll
+		return '.', RemoveAll, false
 	}
 
 	if toMatch, ok := rec.isSeparated(); ok { // easy case : only use the last stroke
@@ -112,9 +113,9 @@ func (rec Record) Identify(store *sy.Store, context sy.Context) (rune, CompoundS
 
 		r, _, isCompatible := store.Lookup(toMatch.Footprint(), context)
 		if isCompatible {
-			return r, KeepLast
+			return r, KeepLast, false
 		}
-		return r, RemoveAll
+		return r, RemoveAll, false
 	}
 
 	// here, len(rec) > 1
@@ -126,9 +127,9 @@ func (rec Record) Identify(store *sy.Store, context sy.Context) (rune, CompoundS
 
 		r, _, isCompatible := store.Lookup(wholeFootprint, context)
 		if isCompatible {
-			return r, KeepAll
+			return r, KeepAll, true
 		}
-		return r, RemoveAll
+		return r, RemoveAll, true
 	}
 
 	// here we are not sure : it could be two distinct symbols
@@ -153,12 +154,12 @@ func (rec Record) Identify(store *sy.Store, context sy.Context) (rune, CompoundS
 		}
 
 		if isWholeCompatible { // even is we prefer the last for now, keep the previous strokes
-			return rLast, KeepAll
+			return rLast, KeepAll, false
 		}
 		if isLastCompatible {
-			return rLast, KeepLast
+			return rLast, KeepLast, false
 		}
-		return rLast, RemoveAll
+		return rLast, RemoveAll, false
 	}
 
 	if debugMode {
@@ -166,9 +167,9 @@ func (rec Record) Identify(store *sy.Store, context sy.Context) (rune, CompoundS
 	}
 
 	if isWholeCompatible {
-		return rWhole, KeepAll
+		return rWhole, KeepAll, true
 	}
-	return rWhole, RemoveAll
+	return rWhole, RemoveAll, true
 }
 
 // return true if the last stroke has one intersection

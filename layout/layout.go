@@ -128,21 +128,25 @@ func (li *Line) Symbols() (out []sy.Footprint) {
 	return out
 }
 
-// func (li *Line) Scopes() (out []Scope) {
-// 	var aux func(node *Node)
-// 	aux = func(node *Node) {
-// 		for _, char := range node.blocks {
-// 			out = append(out, char.Scopes()...)
-// 			for _, child := range char.Children() {
-// 				aux(child)
-// 			}
-// 		}
-// 	}
+// Contexts returns all the possible input areas.
+// This is to be used for debugging purposes.
+func (li *Line) Contexts() (out []sy.Rect) {
+	var aux func(node *Node)
+	aux = func(node *Node) {
+		out = append(out, node.context(true).Box)
+		for _, char := range node.blocks {
+			out = append(out, blockBox(char, true))
+			// recurse
+			for _, child := range char.Children() {
+				aux(child)
+			}
+		}
+	}
 
-// 	aux(&li.root)
+	aux(&li.root)
 
-// 	return out
-// }
+	return out
+}
 
 // LaTeX returns the LaTeX code deduced from the current drawings
 func (li *Line) LaTeX() string { return li.root.latex() }

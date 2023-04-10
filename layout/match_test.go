@@ -33,6 +33,13 @@ func Test_isRectInAreas(t *testing.T) {
 			},
 			1,
 		},
+		{
+			rect(10, 10, 10, 10),
+			[]symbols.Rect{
+				rect(0, 20, 0, 20),
+			},
+			0,
+		},
 	}
 	for _, tt := range tests {
 		if got := isRectInAreas(tt.glyph, tt.candidates); got != tt.want {
