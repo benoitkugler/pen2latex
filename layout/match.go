@@ -6,10 +6,19 @@ import (
 	sy "github.com/benoitkugler/pen2latex/symbols"
 )
 
+type Context struct {
+	sy.Rect
+	Baseline Fl
+}
+
 // FindContext returns the enclosing area for the given point, usually the mouse cursor.
-func (line *Line) FindContext(pos sy.Pos) sy.Context {
+func (line *Line) FindContext(pos sy.Pos) Context {
 	node, _ := line.findNode(sy.Rect{UL: pos, LR: pos})
-	return node.context(true)
+	_, rect := node.boxes()
+	// use content for X dims, but ref height
+	rect.UL.Y = node.height.Ymin
+	rect.LR.Y = node.height.Ymax
+	return Context{Rect: rect, Baseline: node.height.Baseline}
 }
 
 // Insert finds the best place in [line] to insert [content],
@@ -21,19 +30,20 @@ func (line *Line) Insert(rec Record, db *sy.Store) RecordAction {
 	node, insertPos := line.findNode(last.BoundingBox())
 	fmt.Printf("insert at index %v in node %p\n", insertPos, node)
 
-	context := node.context(true)
-	r, action, isCompound := rec.Identify(db, context)
+	r, action, isCompound := rec.Identify(db, node.height)
 
 	wholeSymbol, _, lastStroke := rec.footprints()
 
 	if isCompound {
-		// if a compound symbol is matched, simply update the previous char
+		// if a compound symbol is matched, simply update the last block
 		gr := grapheme{Char: r, Symbol: wholeSymbol}
-		node.blocks[insertPos] = newRegularChar(gr)
+		*line.cursor = newBlock(gr)
 	} else {
 		gr := grapheme{Char: r, Symbol: sy.Footprint{Strokes: []sy.Stroke{lastStroke}}}
 		// add a new block
-		node.insertAt(newRegularChar(gr), insertPos)
+		node.insertAt(newBlock(gr), insertPos)
+		// .. and save the 'cursor' location
+		line.cursor = &node.blocks[insertPos]
 	}
 
 	fmt.Printf("root : %p ; tree : %v\n", &line.root, line.root)
@@ -41,10 +51,9 @@ func (line *Line) Insert(rec Record, db *sy.Store) RecordAction {
 	return action
 }
 
-func newBlock(r rune, symbol sy.Footprint) block {
-	gr := grapheme{Char: r, Symbol: symbol}
+func newBlock(gr grapheme) block {
 	// TODO : support more operators
-	switch r {
+	switch gr.Char {
 	case '_':
 		return newfracOperator(gr)
 	default:
@@ -57,23 +66,24 @@ func newBlock(r rune, symbol sy.Footprint) block {
 func (line *Line) findNode(glyph sy.Rect) (out *Node, index int) {
 	var aux func(*Node) (*Node, int)
 	aux = func(n *Node) (*Node, int) {
-		// collect the extended box of each sub expression, with margin
-		boxes := make([]sy.Rect, len(n.blocks))
+		// collect the extended box of each sub expression
+		innerBoxes, outerBoxes := make([]sy.Rect, len(n.blocks)), make([]sy.Rect, len(n.blocks))
 		for i, char := range n.blocks {
-			boxes[i] = blockBox(char, true)
+			innerBoxes[i], outerBoxes[i] = blockBoxes(char)
 		}
 		// select the correct one ...
-		index := isRectInAreas(glyph, boxes)
+		index := isRectInAreas(glyph, outerBoxes)
 		// ... if index is not -1, recurse on children,
 		if index != -1 {
 			// select the correct scope inside the block
 			childBlock := n.blocks[index]
 			childNodes := childBlock.Children()
-			childBoxes := make([]sy.Rect, len(childNodes))
+			childOuterBoxes := make([]sy.Rect, len(childNodes))
+			// use the parent width
 			for i, char := range childNodes {
-				childBoxes[i] = char.context(true).Box
+				_, childOuterBoxes[i] = char.boxes()
 			}
-			if index := isRectInAreas(glyph, childBoxes); index != -1 { // recurse on node
+			if index := isRectInAreas(glyph, childOuterBoxes); index != -1 { // recurse on node
 				return aux(childNodes[index])
 			}
 
@@ -81,11 +91,7 @@ func (line *Line) findNode(glyph sy.Rect) (out *Node, index int) {
 		}
 
 		// else, we are at the correct level
-		boxesWithoutMargins := make([]sy.Rect, len(n.blocks))
-		for i, char := range n.blocks {
-			boxesWithoutMargins[i] = blockBox(char, false)
-		}
-		return n, indexInsertRectBetweenArea(glyph, boxesWithoutMargins)
+		return n, indexInsertRectBetweenArea(glyph, innerBoxes)
 	}
 
 	return aux(&line.root)

@@ -668,12 +668,12 @@ func TestLookup(t *testing.T) {
 	for _, group := range symbols {
 		expectedRune := rune(group.description[0])
 		for _, symbol := range group.symbols {
-			gotRune, _, _ := db.Lookup(symbol.Footprint(), Context{})
+			gotRune, _, _ := db.Lookup(symbol.Footprint(), HeightGrid{})
 			tu.AssertEqual(t, string(gotRune), string(expectedRune))
 		}
 	}
 
-	invalid, _, _ := db.Lookup(Symbol{{{}}, {{}}, {{}}, {{}}}.Footprint(), Context{})
+	invalid, _, _ := db.Lookup(Symbol{{{}}, {{}}, {{}}, {{}}}.Footprint(), HeightGrid{})
 	tu.AssertEqual(t, invalid, rune(0))
 }
 
@@ -757,7 +757,7 @@ func TestMatchDB_1(t *testing.T) {
 
 	tu.Assert(t, distanceSymbolsCompatible(ref, input) < distanceSymbolsCompatible(ref_other, input))
 
-	r, _, _ := store.Lookup(input, Context{})
+	r, _, _ := store.Lookup(input, HeightGrid{})
 	tu.AssertEqual(t, r, '1')
 }
 
@@ -783,7 +783,7 @@ func TestMatchDB_3(t *testing.T) {
 
 	tu.Assert(t, distanceSymbolsCompatible(ref, input) < distanceSymbolsCompatible(ref_other, input))
 
-	r, _, _ := store.Lookup(input, Context{})
+	r, _, _ := store.Lookup(input, HeightGrid{})
 	tu.AssertEqual(t, r, '3')
 }
 
@@ -809,7 +809,7 @@ func TestMatchDB_4(t *testing.T) {
 	dother := distanceSymbolsCompatible(ref_other, input)
 	tu.Assert(t, dref < dother)
 
-	r, _, _ := store.Lookup(input, Context{})
+	r, _, _ := store.Lookup(input, HeightGrid{})
 	tu.AssertEqual(t, r, '4')
 }
 
@@ -834,7 +834,7 @@ func TestMatchDB_o_d(t *testing.T) {
 	dother := distanceSymbolsExact(ref_other, input)
 	tu.Assert(t, dref < dother)
 
-	r, _, _ := store.Lookup(input, Context{})
+	r, _, _ := store.Lookup(input, HeightGrid{})
 	tu.Assert(t, r == 'o' || r == 'O')
 }
 
@@ -848,7 +848,7 @@ func TestMatchCompatible(t *testing.T) {
 	}
 	input := inputS.Footprint()
 
-	_, _, hasCompatible := store.Lookup(input, Context{})
+	_, _, hasCompatible := store.Lookup(input, HeightGrid{})
 	tu.AssertEqual(t, hasCompatible, true)
 }
 

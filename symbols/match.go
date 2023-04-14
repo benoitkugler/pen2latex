@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-const debugMode = true
+const debugMode = false
 
 // [Lookup] performs approximate matching by finding
 // the closest symbol to [input] in the database and returning its rune.
@@ -22,7 +22,7 @@ const debugMode = true
 //   - for each [Shape] in the record, segment it into Bezier curves, yielding a [ShapeFootprint]
 //   - for each symbol entry in the database, compute the distance between its footprint and the input
 //   - disambiguate results using the size of the surrounding context
-func (db *Store) Lookup(input Footprint, context Context) (rune, Fl, bool) {
+func (db *Store) Lookup(input Footprint, context HeightGrid) (rune, Fl, bool) {
 	var (
 		bestIndex                            int = -1
 		bestDistance, bestDistanceCompatible     = Inf, Inf
@@ -42,7 +42,6 @@ func (db *Store) Lookup(input Footprint, context Context) (rune, Fl, bool) {
 		}
 	}
 
-	fmt.Println(bestDistanceCompatible, 2*bestDistance)
 	hasCompatible := bestDistanceCompatible < Inf && bestDistanceCompatible < 2*bestDistance
 
 	if bestIndex == -1 {
@@ -69,7 +68,8 @@ type Stroke struct {
 
 func newFp(points Shape) Stroke {
 	// fit and regularize
-	curves := mergeSimilarCurves(fitCubicBeziers(points))
+	curves := fitCubicBeziers(points)
+	curves = mergeSimilarCurves(curves)
 	out := Stroke{Curves: curves}
 
 	// compute arc lengths
@@ -192,7 +192,9 @@ func distanceFootprintNoScale(U, V Stroke) Fl {
 		d := c1.distance(c2)
 		length := c1.arcLength()
 
-		fmt.Println("Curve", i, d, length)
+		if debugMode {
+			fmt.Println("Curve", i, ":", d, " * ", length)
+		}
 
 		totalDist += d * length
 		totalLength += length
@@ -387,9 +389,9 @@ func distanceSymbolsExact(U, V Footprint) Fl {
 		return Inf
 	}
 
-	aspectRatioU := U.BoundingBox().Width() / U.BoundingBox().Height()
-	aspectRatioV := V.BoundingBox().Width() / V.BoundingBox().Height()
-	fmt.Println(aspectRatioU, aspectRatioV)
+	// aspectRatioU := U.BoundingBox().Width() / U.BoundingBox().Height()
+	// aspectRatioV := V.BoundingBox().Width() / V.BoundingBox().Height()
+	// fmt.Println(aspectRatioU, aspectRatioV)
 
 	// rescale U to V, with the same transformation for
 	// each shapes

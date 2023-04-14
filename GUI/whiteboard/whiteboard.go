@@ -42,9 +42,9 @@ const (
 	baseline = 60
 )
 
-func (b *Whiteboard) Context() sy.Context {
-	return sy.Context{
-		Box:      sy.Rect{UL: sy.Pos{}, LR: sy.Pos{X: width, Y: height}},
+func (b *Whiteboard) Context() sy.HeightGrid {
+	return sy.HeightGrid{
+		Ymin: 0, Ymax: height,
 		Baseline: baseline,
 	}
 }

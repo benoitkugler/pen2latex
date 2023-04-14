@@ -13,7 +13,7 @@ import (
 const (
 	EMWidth         float32 = 30.
 	EMHeight        float32 = 60.
-	EMBaselineRatio float32 = 0.66 // from the top
+	EMBaselineRatio float32 = 0.7 // from the top
 )
 
 // grapheme is one symbol input, with its resolved Unicode value
@@ -41,46 +41,58 @@ type block interface {
 	laTeX() string
 }
 
-func blockBox(bl block, includeMargin bool) sy.Rect {
-	own := bl.Grapheme().Symbol.BoundingBox()
+func blockBoxes(bl block) (inner, outer sy.Rect) {
+	inner = bl.Grapheme().Symbol.BoundingBox()
+	outer = inner // copy
 	for _, child := range bl.Children() {
-		childContext := child.context(includeMargin)
-		own.Union(childContext.Box)
+		ic, oc := child.boxes()
+		inner.Union(ic)
+		outer.Union(oc)
 	}
-	return own
+	return
 }
 
 // Node represents one level of an expression.
 // An empty node is used when no symbols have been written yet.
 type Node struct {
-	minBox   sy.Rect
-	baseline sy.Fl
+	height   sy.HeightGrid // fixed height
+	initialX Fl            // used when the node is empty
 
 	blocks []block
 }
 
-func newNode(box sy.Rect, baseline Fl) *Node {
-	return &Node{minBox: box, baseline: baseline}
+func newNode(height sy.HeightGrid, x Fl) *Node {
+	return &Node{height: height, initialX: x}
 }
 
-// include the potential children
-// if includeMargin is true, the minimal box is used, and margin after the children is added
-func (n *Node) context(includeMargin bool) sy.Context {
+// boxes return two boxes delimiting the content of the node
+// and its children
+// [inner] only accounts for the actual drawn symbols,
+// whereas [outer] adds a placeholder space
+func (n *Node) boxes() (inner, outer sy.Rect) {
 	// compute the union of the children
-	childrenBbox := sy.EmptyRect()
+
+	if len(n.blocks) == 0 {
+		// use the initial X
+		inner = sy.Rect{
+			UL: sy.Pos{X: n.initialX, Y: n.height.Ymin},
+			LR: sy.Pos{X: n.initialX, Y: n.height.Ymax},
+		}
+	} else {
+		inner = sy.EmptyRect()
+	}
+	outer = inner // copy
 	for _, block := range n.blocks {
-		box := blockBox(block, includeMargin)
-		childrenBbox.Union(box)
+		innerBox, outerBox := blockBoxes(block)
+		inner.Union(innerBox)
+		outer.Union(outerBox)
 	}
 
-	if includeMargin {
-		// and add margin for new inputs
-		childrenBbox.LR.X += EMWidth
-		// make sure it includes at least minBox
-		childrenBbox.Union(n.minBox)
+	// ensure [outer] box has a margin with respect to inner
+	if withMargin := inner.LR.X + EMWidth; outer.LR.X < withMargin {
+		outer.LR.X = withMargin
 	}
-
-	return sy.Context{Box: childrenBbox, Baseline: n.baseline}
+	return
 }
 
 // return the concatenation of the latex for each block
@@ -104,12 +116,12 @@ func (n *Node) insertAt(bl block, index int) {
 type Line struct {
 	root Node
 	// To handle Symbols made of several Shapes,
-	// cursor stores the current Grapheme
-	// cursor *grapheme
+	// cursor stores the last block inserted
+	cursor *block
 }
 
 func NewLine(rect sy.Rect) *Line {
-	return &Line{root: *newNode(rect, baselineFromRect(rect))}
+	return &Line{root: *newNode(baselineFromHeight(rect.UL.Y, rect.LR.Y), rect.UL.X)}
 }
 
 func (li *Line) Symbols() (out []sy.Footprint) {
@@ -128,25 +140,25 @@ func (li *Line) Symbols() (out []sy.Footprint) {
 	return out
 }
 
-// Contexts returns all the possible input areas.
-// This is to be used for debugging purposes.
-func (li *Line) Contexts() (out []sy.Rect) {
-	var aux func(node *Node)
-	aux = func(node *Node) {
-		out = append(out, node.context(true).Box)
-		for _, char := range node.blocks {
-			out = append(out, blockBox(char, true))
-			// recurse
-			for _, child := range char.Children() {
-				aux(child)
-			}
-		}
-	}
+// // Contexts returns all the possible input areas.
+// // This is to be used for debugging purposes.
+// func (li *Line) Contexts() (out []sy.Rect) {
+// 	var aux func(node *Node)
+// 	aux = func(node *Node) {
+// 		out = append(out, node.context(true).Box)
+// 		for _, char := range node.blocks {
+// 			out = append(out, blockBox(char, true))
+// 			// recurse
+// 			for _, child := range char.Children() {
+// 				aux(child)
+// 			}
+// 		}
+// 	}
 
-	aux(&li.root)
+// 	aux(&li.root)
 
-	return out
-}
+// 	return out
+// }
 
 // LaTeX returns the LaTeX code deduced from the current drawings
 func (li *Line) LaTeX() string { return li.root.latex() }
@@ -169,35 +181,36 @@ type regularChar struct {
 
 func newRegularChar(gr grapheme) *regularChar {
 	bb := gr.Symbol.BoundingBox()
-	xLeft := bb.LR.X - 0.1*bb.Width()
+	xLeft := bb.LR.X - 0.2*bb.Width()
 
 	// the height is fixed to a proportion of the EM square
-	height := EMHeight * 0.4
+	height := EMHeight * 0.5
 
 	// adjust the baseline of the exponent scope to the height of the char
-	baselineExponent := bb.UL.Y
-	exponent := rectForBaseline(xLeft, EMWidth, height, baselineExponent)
+	baselineExponent := bb.UL.Y - 0.1*EMHeight
+	exponent := dimsForBaseline(height, baselineExponent)
 
 	// adjust the baseline of the indice scope just under the char
-	baselineIndice := bb.LR.Y + 0.1*EMHeight
-	indice := rectForBaseline(xLeft, EMWidth, height, baselineIndice)
+	baselineIndice := bb.LR.Y + 0.3*EMHeight
+	indice := dimsForBaseline(height, baselineIndice)
 
-	return &regularChar{grapheme: gr, exponent: newNode(exponent, baselineExponent), indice: newNode(indice, baselineIndice)}
+	return &regularChar{grapheme: gr, exponent: newNode(exponent, xLeft), indice: newNode(indice, xLeft)}
 }
 
 func (r *regularChar) Children() []*Node { return []*Node{r.indice, r.exponent} }
 
 // return a rect such that its baseline (top + height*EMBaselineRatio) is at baseline
-func rectForBaseline(x, width, height, baseline float32) sy.Rect {
+func dimsForBaseline(height, baseline Fl) sy.HeightGrid {
 	top := baseline - height*EMBaselineRatio
-	return sy.Rect{
-		UL: sy.Pos{X: x, Y: top},
-		LR: sy.Pos{X: x + width, Y: top + height},
+	return sy.HeightGrid{
+		Ymin: top, Ymax: top + height,
+		Baseline: baseline,
 	}
 }
 
-func baselineFromRect(r sy.Rect) Fl {
-	return r.UL.Y + r.Height()*EMBaselineRatio
+func baselineFromHeight(top, bottom Fl) sy.HeightGrid {
+	baseline := top + (bottom-top)*EMBaselineRatio
+	return sy.HeightGrid{Ymin: top, Ymax: bottom, Baseline: baseline}
 }
 
 func (r regularChar) laTeX() string {
@@ -227,15 +240,15 @@ func newfracOperator(gr grapheme) *fracOperator {
 
 	// enlarge the num height
 	numHeight := EMHeight * 0.9
-	numBox := sy.Rect{UL: sy.Pos{X: bbox.UL.X, Y: fracTop - numHeight}, LR: sy.Pos{X: bbox.LR.X, Y: fracTop}}
-	numBaseline := baselineFromRect(numBox)
+	numTop, numBottom := fracTop-numHeight, fracTop
+	numDims := baselineFromHeight(numTop, numBottom)
 
 	// enlarge the den height
 	denHeight := EMHeight * 0.9
-	denBox := sy.Rect{UL: sy.Pos{X: bbox.UL.X, Y: fracBottom}, LR: sy.Pos{X: bbox.LR.X, Y: fracBottom + denHeight}}
-	denBaseline := baselineFromRect(denBox)
+	denTop, denBottom := fracBottom, fracBottom+denHeight
+	denDims := baselineFromHeight(denTop, denBottom)
 
-	return &fracOperator{grapheme: gr, num: newNode(numBox, numBaseline), den: newNode(denBox, denBaseline)}
+	return &fracOperator{grapheme: gr, num: newNode(numDims, bbox.UL.X), den: newNode(denDims, bbox.UL.X)}
 }
 
 func (f *fracOperator) Children() []*Node { return []*Node{f.num, f.den} }

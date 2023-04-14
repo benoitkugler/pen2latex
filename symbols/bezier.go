@@ -348,3 +348,27 @@ func (be Bezier) hasRoughEndAngle() (Fl, bool) {
 
 	return 0, false
 }
+
+// asusming b1 and b2 are linear, returns true if the two lines are (almost) included in each other
+func areLinesMerged(b1, b2 Bezier) bool {
+	center, cos, sin := b1.normalize()
+	b2.translate(center.ScaleTo(-1))
+	b2.rotate(cos, sin)
+
+	// test if b2 is almost horizontal
+	start, end := b2.P0, b2.P3
+	a := (end.Y - start.Y) / (end.X - start.X)
+	if abs(a) > 0.1 {
+		return false
+	}
+
+	b := start.Y
+	// normalize by the width
+	width := Max(abs(b1.P3.X-b1.P0.X), abs(end.X-start.X))
+
+	if abs(b/width) > 0.05 {
+		return false
+	}
+
+	return true
+}

@@ -500,6 +500,15 @@ func mergeSimilarCurves(curves []Bezier) (out []Bezier) {
 		}
 	}
 
+	// remove inplace repetitions, this has to be done before segment merging
+	if L := len(curves); L > 1 {
+		c1, c2 := curves[0], curves[1]
+		if c1.IsRoughlyLinear() && c2.IsRoughlyLinear() && areLinesMerged(c1, c2) {
+			// we got a repetition : only keep the second segment
+			curves = curves[1:]
+		}
+	}
+
 	// start with the first curve
 	out = []Bezier{curves[0]}
 

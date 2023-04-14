@@ -78,7 +78,7 @@ func (c RecordAction) String() string {
 
 // Identify returns the rune found, the action to perform on the
 // recorder, and a whether or not the symbol is compound
-func (rec Record) Identify(store *sy.Store, context sy.Context) (rune, RecordAction, bool) {
+func (rec Record) Identify(store *sy.Store, context sy.HeightGrid) (rune, RecordAction, bool) {
 	wholeFootprint, previous, last := rec.footprints()
 	previousFooprint, lastFootprint := sy.Footprint{Strokes: previous}, sy.Footprint{Strokes: []sy.Stroke{last}}
 

@@ -94,3 +94,16 @@ func Test_hasSpuriousCurvature(t *testing.T) {
 	_, ok = be.hasSpuriousCurvature()
 	tu.AssertEqual(t, ok, false)
 }
+
+func Test_areLinesMerged(t *testing.T) {
+	// A with double first line
+	l1, l2 := Bezier{Pos{X: 234.0, Y: 22.0}, Pos{X: 231.7, Y: 24.3}, Pos{X: 221.0, Y: 54.9}, Pos{X: 221.0, Y: 62.0}}, Bezier{Pos{X: 221.0, Y: 62.0}, Pos{X: 221.0, Y: 48.5}, Pos{X: 233.0, Y: 30.6}, Pos{X: 233.0, Y: 15.0}}
+	tu.Assert(t, l1.IsRoughlyLinear())
+	tu.Assert(t, l2.IsRoughlyLinear())
+
+	tu.Assert(t, areLinesMerged(l1, l2))
+
+	sqrt1, sqrt2 := Bezier{Pos{X: 25.0, Y: 53.0}, Pos{X: 35.7, Y: 53.0}, Pos{X: 39.2, Y: 85.2}, Pos{X: 45.0, Y: 91.0}}, Bezier{Pos{X: 45.0, Y: 91.0}, Pos{X: 45.0, Y: 74.6}, Pos{X: 52.0, Y: 54.0}, Pos{X: 52.0, Y: 38.0}}
+
+	tu.Assert(t, !areLinesMerged(sqrt1, sqrt2))
+}

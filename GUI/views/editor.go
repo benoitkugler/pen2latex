@@ -31,14 +31,14 @@ type Editor struct {
 	line *la.Line
 
 	// the current context, diplayed with highlight
-	context sy.Context
+	context la.Context
 
 	rec la.Recorder
 }
 
 const (
 	width  = 600
-	height = 100
+	height = 70
 )
 
 func NewEditor(store *sy.Store, theme *material.Theme) *Editor {
@@ -50,7 +50,7 @@ func (ed *Editor) Layout(gtx C) D {
 	if ed.resetButton.Clicked() {
 		ed.rec.Reset()
 		ed.line = la.NewLine(sy.Rect{sy.Pos{}, sy.Pos{width, height}})
-		ed.context = sy.Context{}
+		ed.context = la.Context{}
 	}
 
 	return layout.Flex{Axis: layout.Vertical, Spacing: layout.SpaceEvenly}.Layout(gtx,
@@ -82,7 +82,7 @@ func (ed *Editor) layoutLine(gtx C) D {
 			case pointer.Move:
 				ed.context = ed.line.FindContext(sy.Pos{X: ev.Position.X, Y: ev.Position.Y})
 			case pointer.Leave:
-				ed.context = sy.Context{}
+				ed.context = la.Context{}
 			case pointer.Press:
 				ed.rec.StartShape()
 			case pointer.Release:
@@ -104,7 +104,7 @@ func (ed *Editor) layoutLine(gtx C) D {
 	ed.drawSymbols(gtx)
 
 	// contexts, for debudding
-	ed.drawAllContexts(gtx)
+	// ed.drawAllContexts(gtx)
 
 	return D{Size: size}
 }
@@ -122,23 +122,23 @@ func (ed *Editor) onStroke() {
 }
 
 func (ed *Editor) drawContext(gtx C) {
-	if ed.context.Box.IsEmpty() {
+	if ed.context.Rect.IsEmpty() {
 		return
 	}
 
-	box := rectToRect(ed.context.Box)
+	box := rectToRect(ed.context.Rect)
 	paint.FillShape(gtx.Ops, color.NRGBA{0xE0, 0xF8, 0xA1, 0xFF}, box.Op())
 	box.Min.Y = int(ed.context.Baseline)
 	box.Max.Y = int(ed.context.Baseline) + 1
 	paint.FillShape(gtx.Ops, color.NRGBA{10, 10, 0, 0xFF}, box.Op())
 }
 
-func (ed *Editor) drawAllContexts(gtx C) {
-	for _, rect := range ed.line.Contexts() {
-		box := rectToRect(rect)
-		paint.FillShape(gtx.Ops, color.NRGBA{0xE0, 0xF8, 20, 100}, box.Op())
-	}
-}
+// func (ed *Editor) drawAllContexts(gtx C) {
+// 	for _, rect := range ed.line.Contexts() {
+// 		box := rectToRect(rect)
+// 		paint.FillShape(gtx.Ops, color.NRGBA{0xE0, 0xF8, 20, 100}, box.Op())
+// 	}
+// }
 
 func (ed *Editor) drawSymbols(gtx C) {
 	for _, fp := range ed.line.Symbols() {
