@@ -132,6 +132,8 @@ func TestFitBeziers(t *testing.T) {
 	}
 	fitteds = fitCubicBeziers(points)
 	tu.AssertEqual(t, len(fitteds), 4) // two splits
+	printShape(t, generateFootprint(fitteds), "before")
+	printShape(t, generateFootprint(mergeSimilarCurves(fitteds)), "after")
 	tu.AssertEqual(t, len(mergeSimilarCurves(fitteds)), 2)
 
 	// S
@@ -180,6 +182,15 @@ func Test1(t *testing.T) {
 	printShape(t, fitteds[1].toPoints(), "c1")
 }
 
+func Test_mergeb(t *testing.T) {
+	bs := []Bezier{
+		{Pos{X: 14.0, Y: 2.3}, Pos{X: 14.0, Y: 6.4}, Pos{X: 16.7, Y: 26.0}, Pos{X: 19.0, Y: 28.3}}, {Pos{X: 19.0, Y: 28.3}, Pos{X: 19.0, Y: 26.9}, Pos{X: 16.8, Y: 21.3}, Pos{X: 19.0, Y: 21.3}}, {Pos{X: 19.0, Y: 21.3}, Pos{X: 22.2, Y: 21.3}, Pos{X: 28.2, Y: 29.9}, Pos{X: 26.0, Y: 33.3}}, {Pos{X: 26.0, Y: 33.3}, Pos{X: 23.5, Y: 37.1}, Pos{X: 15.0, Y: 30.4}, Pos{X: 16.0, Y: 26.3}},
+	}
+
+	printShape(t, generateFootprint(bs), "b_before")
+	printShape(t, generateFootprint(mergeSimilarCurves(bs)), "b_after")
+}
+
 func Test_areBeziersSpuriousCurvature(t *testing.T) {
 	c1 := Bezier{Pos{X: 45.0, Y: 58.0}, Pos{X: 59.2, Y: 58.0}, Pos{X: 61.5, Y: 29.9}, Pos{X: 60.0, Y: 48.0}}
 	c2 := Bezier{Pos{X: 60.0, Y: 48.0}, Pos{X: 58.5, Y: 62.0}, Pos{X: 58.5, Y: 62.0}, Pos{X: 57.0, Y: 76.0}}
@@ -195,4 +206,35 @@ func TestRemoveRepetitions(t *testing.T) {
 		{{X: 234.0, Y: 22.0}, {X: 234.0, Y: 22.0}, {X: 234.0, Y: 22.0}, {X: 234.0, Y: 22.0}, {X: 234.0, Y: 22.0}, {X: 234.0, Y: 21.0}, {X: 234.0, Y: 21.0}, {X: 234.0, Y: 21.0}, {X: 234.0, Y: 21.0}, {X: 234.0, Y: 21.0}, {X: 234.0, Y: 21.0}, {X: 234.0, Y: 21.0}, {X: 234.0, Y: 21.0}, {X: 234.0, Y: 21.0}, {X: 234.0, Y: 21.0}, {X: 234.0, Y: 21.0}, {X: 234.0, Y: 21.0}, {X: 234.0, Y: 21.0}, {X: 234.0, Y: 21.0}, {X: 233.0, Y: 23.0}, {X: 233.0, Y: 24.0}, {X: 232.0, Y: 27.0}, {X: 231.0, Y: 30.0}, {X: 229.0, Y: 34.0}, {X: 228.0, Y: 37.0}, {X: 227.0, Y: 41.0}, {X: 226.0, Y: 45.0}, {X: 225.0, Y: 48.0}, {X: 224.0, Y: 52.0}, {X: 223.0, Y: 55.0}, {X: 222.0, Y: 57.0}, {X: 221.0, Y: 59.0}, {X: 221.0, Y: 61.0}, {X: 221.0, Y: 61.0}, {X: 221.0, Y: 62.0}, {X: 221.0, Y: 62.0}, {X: 221.0, Y: 62.0}, {X: 221.0, Y: 62.0}, {X: 221.0, Y: 61.0}, {X: 221.0, Y: 61.0}, {X: 222.0, Y: 59.0}, {X: 223.0, Y: 57.0}, {X: 224.0, Y: 54.0}, {X: 225.0, Y: 51.0}, {X: 226.0, Y: 48.0}, {X: 227.0, Y: 45.0}, {X: 228.0, Y: 42.0}, {X: 228.0, Y: 40.0}, {X: 229.0, Y: 37.0}, {X: 230.0, Y: 34.0}, {X: 230.0, Y: 31.0}, {X: 231.0, Y: 28.0}, {X: 232.0, Y: 25.0}, {X: 232.0, Y: 22.0}, {X: 232.0, Y: 20.0}, {X: 233.0, Y: 18.0}, {X: 233.0, Y: 17.0}, {X: 233.0, Y: 16.0}, {X: 233.0, Y: 16.0}, {X: 233.0, Y: 15.0}, {X: 233.0, Y: 15.0}, {X: 233.0, Y: 15.0}, {X: 233.0, Y: 15.0}, {X: 233.0, Y: 15.0}, {X: 233.0, Y: 15.0}, {X: 233.0, Y: 15.0}, {X: 233.0, Y: 15.0}, {X: 234.0, Y: 16.0}, {X: 235.0, Y: 17.0}, {X: 236.0, Y: 18.0}, {X: 237.0, Y: 20.0}, {X: 238.0, Y: 22.0}, {X: 240.0, Y: 25.0}, {X: 241.0, Y: 27.0}, {X: 242.0, Y: 30.0}, {X: 243.0, Y: 33.0}, {X: 244.0, Y: 36.0}, {X: 245.0, Y: 39.0}, {X: 246.0, Y: 42.0}, {X: 247.0, Y: 44.0}, {X: 248.0, Y: 47.0}, {X: 249.0, Y: 49.0}, {X: 249.0, Y: 51.0}, {X: 250.0, Y: 53.0}, {X: 250.0, Y: 55.0}, {X: 251.0, Y: 56.0}, {X: 251.0, Y: 57.0}, {X: 252.0, Y: 59.0}, {X: 252.0, Y: 59.0}, {X: 252.0, Y: 60.0}, {X: 252.0, Y: 60.0}, {X: 252.0, Y: 60.0}, {X: 252.0, Y: 60.0}, {X: 252.0, Y: 60.0}, {X: 252.0, Y: 60.0}, {X: 252.0, Y: 60.0}, {X: 252.0, Y: 60.0}, {X: 252.0, Y: 60.0}, {X: 252.0, Y: 60.0}, {X: 252.0, Y: 60.0}, {X: 252.0, Y: 60.0}, {X: 252.0, Y: 60.0}, {X: 252.0, Y: 60.0}, {X: 252.0, Y: 60.0}, {X: 252.0, Y: 60.0}, {X: 252.0, Y: 60.0}, {X: 252.0, Y: 60.0}},
 	}.Footprint().Strokes[0].Curves
 	tu.AssertEqual(t, len(A), 2) // and not 3
+}
+
+func TestAngles(t *testing.T) {
+	S := Shape{{X: 208.0, Y: 9.0}, {X: 208.0, Y: 9.0}, {X: 208.0, Y: 9.0}, {X: 208.0, Y: 9.0}, {X: 208.0, Y: 9.0}, {X: 207.0, Y: 9.0}, {X: 206.0, Y: 9.0}, {X: 205.0, Y: 9.0}, {X: 203.0, Y: 10.0}, {X: 202.0, Y: 10.0}, {X: 201.0, Y: 11.0}, {X: 199.0, Y: 12.0}, {X: 198.0, Y: 13.0}, {X: 196.0, Y: 14.0}, {X: 195.0, Y: 15.0}, {X: 194.0, Y: 17.0}, {X: 193.0, Y: 18.0}, {X: 193.0, Y: 19.0}, {X: 193.0, Y: 20.0}, {X: 193.0, Y: 21.0}, {X: 193.0, Y: 22.0}, {X: 193.0, Y: 23.0}, {X: 194.0, Y: 23.0}, {X: 196.0, Y: 24.0}, {X: 197.0, Y: 25.0}, {X: 199.0, Y: 25.0}, {X: 201.0, Y: 26.0}, {X: 203.0, Y: 27.0}, {X: 205.0, Y: 28.0}, {X: 207.0, Y: 29.0}, {X: 209.0, Y: 30.0}, {X: 210.0, Y: 31.0}, {X: 211.0, Y: 33.0}, {X: 212.0, Y: 35.0}, {X: 213.0, Y: 38.0}, {X: 213.0, Y: 40.0}, {X: 213.0, Y: 42.0}, {X: 212.0, Y: 45.0}, {X: 212.0, Y: 47.0}, {X: 210.0, Y: 49.0}, {X: 209.0, Y: 50.0}, {X: 208.0, Y: 51.0}, {X: 206.0, Y: 52.0}, {X: 205.0, Y: 52.0}, {X: 203.0, Y: 52.0}, {X: 202.0, Y: 52.0}, {X: 201.0, Y: 51.0}, {X: 199.0, Y: 50.0}, {X: 198.0, Y: 49.0}, {X: 197.0, Y: 47.0}, {X: 197.0, Y: 46.0}, {X: 197.0, Y: 46.0}, {X: 197.0, Y: 45.0}, {X: 196.0, Y: 45.0}, {X: 196.0, Y: 45.0}, {X: 196.0, Y: 45.0}, {X: 196.0, Y: 45.0}, {X: 197.0, Y: 45.0}}
+	st := newFp(S)
+	printShape(t, S, "S_orig")
+	printShape(t, generateFootprint(st.Curves), "S")
+
+	S = shapes[1].shapes[0]
+	st = newFp(S)
+	printShape(t, S, "S2_orig")
+	printShape(t, generateFootprint(st.Curves), "S2")
+
+	S = shapes[1].shapes[1]
+	st = newFp(S)
+	printShape(t, S, "S3_orig")
+	cs := fitCubicBeziers(S)
+	printShape(t, generateFootprint(cs), "S3_before")
+	printShape(t, generateFootprint(st.Curves), "S3")
+
+	S = shapes[3].shapes[0]
+	st = newFp(S)
+	printShape(t, S, "Sigma_orig")
+	printShape(t, generateFootprint(st.Curves), "Sigma")
+
+	S = shapes[5].shapes[2]
+	st = newFp(S)
+	printShape(t, S, "b_orig")
+	cs = fitCubicBeziers(S)
+	printShape(t, generateFootprint(cs), "b_before")
+	printShape(t, generateFootprint(st.Curves), "b")
 }

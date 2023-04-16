@@ -161,6 +161,95 @@ func (fp Stroke) scale(tr Trans) Stroke {
 	return out
 }
 
+func haveReturn(points Shape) int {
+	bbox := points.BoundingBox()
+	ref := Max(bbox.Width(), bbox.Height())
+	arcs := pathLengthIndices(points)
+	first := points[0]
+	for i, p := range points {
+		// ignore the first points
+		if arc := arcs[i]; arc < 0.2 {
+			continue
+		}
+		if d := distP(first, p) / ref; d < 0.1 {
+			return i
+		}
+	}
+	return -1
+}
+
+// return the maximum angle, or 0
+func areCurvesCircle(curves ...Bezier) Fl {
+	var points Shape
+	var nbLinear int
+	for i, cu := range curves {
+		if i != 0 {
+			// enforce tangents
+			if abs(tangentAngle(curves[i-1], cu)) > 90 {
+				return 0
+			}
+		}
+		if cu.IsRoughlyLinear() {
+			nbLinear++
+		}
+		points = append(points, cu.toPoints()...)
+	}
+
+	if nbLinear > 1 {
+		return 0
+	}
+
+	// restrict to the first circle if ever
+	if i := haveReturn(points); i != -1 {
+		points = points[:i]
+	}
+
+	var middle Pos
+	for _, p := range points {
+		middle = middle.Add(p)
+	}
+	middle.Scale(1 / Fl(len(points)))
+
+	// compute angles as delta to avoid spurious jumps
+	lastP := points[0]
+	var lastAngle Fl
+	for _, p := range points {
+		lastVec, vec := lastP.Sub(middle), p.Sub(middle)
+		deltaAngle := angle(vec, lastVec)
+		angle := lastAngle + deltaAngle
+		lastP = p
+		lastAngle = angle
+	}
+
+	lastAngle = abs(lastAngle)
+	return Min(lastAngle, 360)
+}
+
+// return the maximum angle portion covered
+func (sp Stroke) hasCircle() Fl {
+	var max Fl
+	// circle comes from one, two or three curves
+	for i := range sp.Curves {
+		if a := areCurvesCircle(sp.Curves[i]); max < a {
+			max = a
+		}
+		if i == 0 {
+			continue
+		}
+		if a := areCurvesCircle(sp.Curves[i-1], sp.Curves[i]); max < a {
+			max = a
+		}
+		if i <= 1 {
+			continue
+		}
+		if a := areCurvesCircle(sp.Curves[i-2], sp.Curves[i-1], sp.Curves[i]); max < a {
+			max = a
+		}
+	}
+
+	return max
+}
+
 func startEnd(cu []Bezier) Rect {
 	return Rect{cu[0].P0, cu[len(cu)-1].P3}
 }
@@ -173,13 +262,53 @@ func distanceFootprints(U, V Stroke) Fl {
 	return distanceFootprintNoScale(U, V)
 }
 
+// returns true if U starts with a line, followed by a clean
+// angle
+func (U Stroke) hasStartLine() bool {
+	if len(U.Curves) < 2 {
+		return false
+	}
+	c1, c2 := U.Curves[0], U.Curves[1]
+	return c1.diffWithLine() < 0.05 && tangentAngle(c1, c2) >= 45
+}
+
+func areGrosslyDifferent(U, V Stroke) bool {
+	Lu, Lv := len(U.Curves), len(V.Curves)
+	// mono curve are exclusive
+	if Lu == 1 && Lv >= 3 {
+		return true
+	}
+
+	// some stroke are split up, so only return true if the tangent are
+	// incompatible
+	if Lu == 1 && Lv == 2 {
+		if a := tangentAngle(V.Curves[0], V.Curves[1]); a >= 135 {
+			return true
+		}
+	}
+
+	return false
+}
+
 // distanceFootprintNoScale returns the distance between U and V,
 // without rescaling step
 func distanceFootprintNoScale(U, V Stroke) Fl {
-	c1s, c2s, ok := adjustFootprints(U, V)
-	if !ok {
+	if areGrosslyDifferent(U, V) || areGrosslyDifferent(V, U) {
 		return Inf
 	}
+
+	// compare the circles
+	var penalty Fl = 1
+	// use straight line to separate shapes likes S and 5
+	if U.hasStartLine() != V.hasStartLine() {
+		penalty += 1
+	}
+	cu, cv := U.hasCircle(), V.hasCircle()
+	if !(cu <= 250 && cv <= 250) && abs(cu-cv) > 30 {
+		penalty += 1
+	}
+
+	c1s, c2s := adjustFootprints(U, V)
 
 	var (
 		totalDist   Fl
@@ -200,11 +329,11 @@ func distanceFootprintNoScale(U, V Stroke) Fl {
 		totalLength += length
 	}
 
-	return totalDist / totalLength
+	return penalty * totalDist / totalLength
 }
 
 // adjustFootprints assume U has been scaled to match V
-func adjustFootprints(U, V Stroke) (c1s, c2s []Bezier, ok bool) {
+func adjustFootprints(U, V Stroke) (c1s, c2s []Bezier) {
 	// rescale both U and V to a reference size so that error values are
 	// comparable across the database
 	cbox := U.controlBox()
@@ -217,13 +346,10 @@ func adjustFootprints(U, V Stroke) (c1s, c2s []Bezier, ok bool) {
 	V = V.scale(tr)
 
 	// compute the common subdivision
-	split1, split2, ok := mapBetweenArcLengths(U.ArcLengths, V.ArcLengths)
-	if !ok {
-		return nil, nil, false
-	}
+	split1, split2 := mapBetweenArcLengths(U.ArcLengths, V.ArcLengths)
 	c1s, c2s = U.split(split1), V.split(split2)
 
-	return c1s, c2s, true
+	return c1s, c2s
 }
 
 // map curve index to offsets t in the curve ( between 0 and 1)
@@ -235,7 +361,7 @@ type splitMap map[int][]Fl
 //
 // after applying the two list of split returned,
 // the footprints will have the same number of curves
-func mapBetweenArcLengths(a1, a2 []Fl) (s1, s2 splitMap, ok bool) {
+func mapBetweenArcLengths(a1, a2 []Fl) (s1, s2 splitMap) {
 	i1, i2 := 0, 0
 	s1, s2 = make(splitMap), make(splitMap)
 	for i1 < len(a1) && i2 < len(a2) {
@@ -256,33 +382,23 @@ func mapBetweenArcLengths(a1, a2 []Fl) (s1, s2 splitMap, ok bool) {
 				prev2 = a2[i2-1]
 			}
 
-			// check if there is a significant gap,
-			// to be split up
 			if v1 < v2 {
 				// try to split [prev2, v1, v2]
-				if abs(v1-prev2) > gapWidth && abs(v2-v1) > gapWidth {
-					// split and map the value from [prev2, v2] to [0,1]
-					t1 := (v1 - prev2) / (v2 - prev2)
-					s2[i2] = append(s2[i2], t1)
-					i1++
-				} else { // consider the shapes are incompatible
-					return nil, nil, false
-				}
+				// split and map the value from [prev2, v2] to [0,1]
+				t1 := (v1 - prev2) / (v2 - prev2)
+				s2[i2] = append(s2[i2], t1)
+				i1++
 			} else { // same
 				// try to split [prev1, v2, v1]
-				if abs(v2-prev1) > gapWidth && abs(v1-v2) > gapWidth {
-					// split and map the value from [prev1, v1] to [0,1]
-					t2 := (v2 - prev1) / (v1 - prev1)
-					s1[i1] = append(s1[i1], t2)
-					i2++
-				} else { // consider the shapes are incompatible
-					return nil, nil, false
-				}
+				// split and map the value from [prev1, v1] to [0,1]
+				t2 := (v2 - prev1) / (v1 - prev1)
+				s1[i1] = append(s1[i1], t2)
+				i2++
 			}
 		}
 	}
 
-	return s1, s2, true
+	return s1, s2
 }
 
 func (fp Stroke) split(splits splitMap) []Bezier {

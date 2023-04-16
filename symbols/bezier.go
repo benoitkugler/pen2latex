@@ -214,8 +214,7 @@ func (U Bezier) IsRoughlyLinear() bool {
 	return U.diffWithLine() < 0.1
 }
 
-// assume control points are inside the edges
-// return a normalized value, usually under 0.1 for lines
+// return a normalized value, usually under 0.1 for lines (lower is better)
 // returns Inf if it can't be a line
 func (U Bezier) diffWithLine() Fl {
 	U.normalize()
@@ -240,10 +239,10 @@ func (U Bezier) diffWithLine() Fl {
 	return area
 }
 
-func areTangentsAligned(c1, c2 Bezier) bool {
+func tangentAngle(c1, c2 Bezier) Fl {
 	d1 := c1.P3.Sub(c1.P2)
 	d2 := c2.P1.Sub(c2.P0)
-	return abs(angle(d1, d2)) < 5
+	return abs(angle(d1, d2))
 }
 
 func (b *Bezier) translate(p Pos) {

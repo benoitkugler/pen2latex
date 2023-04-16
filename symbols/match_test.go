@@ -16,23 +16,22 @@ func Test_mapBetweenArcLengths(t *testing.T) {
 		a2       []Fl
 		wantOut1 splitMap
 		wantOut2 splitMap
-		wantOk   bool
 	}{
 		{
-			[]Fl{0, 1, 2, 3}, []Fl{0, 1, 2, 3}, splitMap{}, splitMap{}, true,
+			[]Fl{0, 1, 2, 3}, []Fl{0, 1, 2, 3}, splitMap{}, splitMap{},
 		},
 		{
-			[]Fl{0.2435399, 0.4719608, 0.70726687, 1}, []Fl{0.2371314, 0.4882852, 0.7089619, 1}, splitMap{}, splitMap{}, true,
+			[]Fl{0.2435399, 0.4719608, 0.70726687, 1}, []Fl{0.2371314, 0.4882852, 0.7089619, 1}, splitMap{}, splitMap{},
 		},
 		{
-			[]Fl{0.6944475, 1}, []Fl{0.6811506, 1}, splitMap{}, splitMap{}, true,
+			[]Fl{0.6944475, 1}, []Fl{0.6811506, 1}, splitMap{}, splitMap{},
 		},
 		{
-			[]Fl{0.6, 1}, []Fl{0.3, 1}, splitMap{0: []Fl{0.5}}, splitMap{1: []Fl{0.5}}, true,
+			[]Fl{0.6, 1}, []Fl{0.3, 1}, splitMap{0: []Fl{0.5}}, splitMap{1: []Fl{0.5}},
 		},
 	}
 	for _, tt := range tests {
-		if gotOut1, gotOut2, ok := mapBetweenArcLengths(tt.a1, tt.a2); !(reflect.DeepEqual(gotOut1, tt.wantOut1) && reflect.DeepEqual(gotOut1, tt.wantOut1) && ok == tt.wantOk) {
+		if gotOut1, gotOut2 := mapBetweenArcLengths(tt.a1, tt.a2); !(reflect.DeepEqual(gotOut1, tt.wantOut1) && reflect.DeepEqual(gotOut1, tt.wantOut1)) {
 			t.Errorf("mergeArcLengths() = %v, %v, want %v, %v", gotOut1, gotOut2, tt.wantOut1, tt.wantOut2)
 		}
 	}
@@ -55,13 +54,30 @@ func TestSplit(t *testing.T) {
 		ArcLengths: []float32{0.48838153, 0.68698424, 1},
 	}
 
-	s1, s2, ok := mapBetweenArcLengths(fp1.ArcLengths, fp2.ArcLengths)
-	tu.Assert(t, ok)
-	fmt.Println(s1, s2)
+	s1, s2 := mapBetweenArcLengths(fp1.ArcLengths, fp2.ArcLengths)
 	tu.AssertEqual(t, len(fp1.split(s1)), len(fp2.split(s2)))
 }
 
-var shapes = []struct {
+func TestDetectCircles(t *testing.T) {
+	g1 := newFp(shapes[18].shapes[0])
+	tu.Assert(t, g1.hasCircle() > 310)
+	g2 := newFp(shapes[18].shapes[1])
+	tu.Assert(t, g2.hasCircle() > 310)
+	y := newFp(shapes[17].shapes[1])
+	tu.Assert(t, y.hasCircle() < 280)
+
+	b1 := newFp(shapes[5].shapes[0])
+	tu.Assert(t, b1.hasCircle() > 310)
+	b3 := newFp(shapes[5].shapes[2])
+	tu.Assert(t, b3.hasCircle() > 310)
+
+	s5 := newFp(shapes[22].shapes[0])
+	tu.Assert(t, s5.hasCircle() < 280)
+	s5 = newFp(shapes[22].shapes[1])
+	tu.Assert(t, s5.hasCircle() < 310)
+}
+
+var shapes = [...]struct {
 	description string
 	shapes      []Shape
 }{
@@ -275,7 +291,7 @@ var shapes = []struct {
 		},
 	},
 	{
-		"Y",
+		"y",
 		[]Shape{
 			{
 				{X: 115.0, Y: 181.3}, {X: 115.0, Y: 180.3}, {X: 115.0, Y: 179.3}, {X: 115.0, Y: 180.3}, {X: 115.0, Y: 181.3}, {X: 115.0, Y: 182.3}, {X: 115.0, Y: 183.3}, {X: 115.0, Y: 184.3}, {X: 116.0, Y: 185.3}, {X: 116.0, Y: 186.3}, {X: 116.0, Y: 187.3}, {X: 117.0, Y: 188.3}, {X: 117.0, Y: 189.3}, {X: 118.0, Y: 190.3}, {X: 118.0, Y: 191.3}, {X: 119.0, Y: 192.3}, {X: 120.0, Y: 193.3}, {X: 121.0, Y: 193.3}, {X: 121.0, Y: 194.3}, {X: 122.0, Y: 194.3}, {X: 123.0, Y: 194.3}, {X: 124.0, Y: 193.3}, {X: 126.0, Y: 192.3}, {X: 127.0, Y: 191.3}, {X: 128.0, Y: 189.3}, {X: 130.0, Y: 187.3}, {X: 131.0, Y: 185.3}, {X: 132.0, Y: 183.3}, {X: 132.0, Y: 181.3}, {X: 132.0, Y: 179.3}, {X: 133.0, Y: 178.3}, {X: 133.0, Y: 177.3}, {X: 132.0, Y: 177.3}, {X: 131.0, Y: 177.3}, {X: 130.0, Y: 178.3}, {X: 129.0, Y: 179.3}, {X: 129.0, Y: 181.3}, {X: 128.0, Y: 182.3}, {X: 128.0, Y: 185.3}, {X: 128.0, Y: 187.3}, {X: 128.0, Y: 189.3}, {X: 128.0, Y: 192.3}, {X: 128.0, Y: 194.3}, {X: 128.0, Y: 197.3}, {X: 129.0, Y: 199.3}, {X: 129.0, Y: 201.3}, {X: 130.0, Y: 204.3}, {X: 130.0, Y: 206.3}, {X: 131.0, Y: 209.3}, {X: 131.0, Y: 211.3}, {X: 132.0, Y: 214.3}, {X: 132.0, Y: 217.3}, {X: 133.0, Y: 220.3}, {X: 133.0, Y: 223.3}, {X: 133.0, Y: 226.3}, {X: 133.0, Y: 230.3}, {X: 133.0, Y: 233.3}, {X: 132.0, Y: 236.3}, {X: 131.0, Y: 238.3}, {X: 131.0, Y: 240.3}, {X: 129.0, Y: 242.3}, {X: 128.0, Y: 243.3}, {X: 126.0, Y: 243.3}, {X: 123.0, Y: 244.3}, {X: 121.0, Y: 244.3}, {X: 119.0, Y: 243.3}, {X: 116.0, Y: 243.3}, {X: 115.0, Y: 242.3}, {X: 113.0, Y: 241.3}, {X: 112.0, Y: 241.3}, {X: 111.0, Y: 240.3}, {X: 110.0, Y: 239.3},
@@ -373,7 +389,7 @@ func TestShapeDistance(t *testing.T) {
 
 	for i, fp := range footprints {
 		groupIndex := groups[i]
-
+		// hasCircle := fp.hasCircle()
 		// compare distance with all the shapes
 		// and assert it is minimal for the group
 		maxInGroup, minOutsideGroup := Fl(0), Inf
@@ -386,7 +402,7 @@ func TestShapeDistance(t *testing.T) {
 			d2 := shapeDistance(s1, s2)
 
 			fmt.Printf("dist from %d : %v\n", j, d)
-			fmt.Printf("dist shape from %d : %v\n", j, d2)
+			// fmt.Printf("dist shape from %d : %v\n", j, d2)
 			isInGroup := groups[j] == groupIndex
 			if isInGroup && d > maxInGroup {
 				maxInGroup = d
@@ -400,10 +416,14 @@ func TestShapeDistance(t *testing.T) {
 			if !isInGroup && d2 < minOutsideGroup2 {
 				minOutsideGroup2 = d2
 			}
+
+			// if isInGroup {
+			// 	tu.AssertEqual(t, fp2.hasCircle(), hasCircle)
+			// }
 		}
 
 		fmt.Println()
-		fmt.Println("Group shape distance max ->", maxInGroup2)
+		fmt.Println("Group distance max ->", maxInGroup, minOutsideGroup)
 		fmt.Println("----------------------------------")
 		fmt.Println()
 		tu.Assert(t, maxInGroup < minOutsideGroup)
@@ -416,22 +436,16 @@ func TestPrintShapes(t *testing.T) {
 	for ng, group := range shapes {
 		for j, s := range group.shapes {
 			fp := newFp(s)
-			printShape(t, generateFootprint(fp.Curves), fmt.Sprintf("fit_%d_char_%s_%d_version_%d", i, group.description, ng, j))
+			printShape(t, generateFootprint(fp.Curves), fmt.Sprintf("shape_%d_char_%s_%d_version_%d", i, group.description, ng, j))
 			i++
 		}
 	}
 }
 
-func TestLinearChunks(t *testing.T) {
-	printComparisonDetails(t, newFp(shapes[6].shapes[1]), newFp(shapes[6].shapes[3]), "a")
-}
-
-func TestArcLengths(t *testing.T) {
-	a1 := newFp(shapes[5].shapes[0])
-	a2 := newFp(shapes[5].shapes[2])
-
-	_, _, ok := mapBetweenArcLengths(a1.ArcLengths, a2.ArcLengths)
-	tu.Assert(t, ok)
+func Test8(t *testing.T) {
+	f1, f2 := newFp(shapes[21].shapes[0]), newFp(shapes[21].shapes[1])
+	fmt.Println(f1.ArcLengths, f2.ArcLengths)
+	printComparisonDetails(t, f1, f2, "8")
 }
 
 func TestTrivialMatch(t *testing.T) {
@@ -651,6 +665,7 @@ func TestSymbolDistance(t *testing.T) {
 		}
 
 		fmt.Println()
+		fmt.Println("Group distance max ->", maxInGroup, minOutsideGroup)
 		fmt.Println("----------------------------------")
 		fmt.Println()
 		tu.Assert(t, maxInGroup < minOutsideGroup)
@@ -658,6 +673,7 @@ func TestSymbolDistance(t *testing.T) {
 }
 
 func TestLookup(t *testing.T) {
+	// build a store with the first symbol of each group
 	base := map[rune]Symbol{}
 	for _, group := range symbols {
 		r := rune(group.description[0])
@@ -686,7 +702,7 @@ func TestPrintSymbols(t *testing.T) {
 			for _, fp := range symbol.Strokes {
 				total = append(total, generateFootprint(fp.Curves)...)
 			}
-			printShape(t, total, fmt.Sprintf("fit_%d_symbol_%s_%d_version_%d", i, group.description, ng, j))
+			printShape(t, total, fmt.Sprintf("symbol_%d_symbol_%s_%d_version_%d", i, group.description, ng, j))
 			i++
 		}
 	}
@@ -705,7 +721,7 @@ func printComparisonDetails(t *testing.T, U, V Stroke, name string) {
 	tr := mapFromTo(U.controlBox(), V.controlBox())
 	U = U.scale(tr)
 
-	c1, c2, _ := adjustFootprints(U, V)
+	c1, c2 := adjustFootprints(U, V)
 	for i := range c1 {
 		printShape(t, append(c1[i].toPoints(), c2[i].toPoints()...), fmt.Sprintf("%s_details_%d", name, i))
 	}
@@ -784,7 +800,7 @@ func TestMatchDB_3(t *testing.T) {
 	tu.Assert(t, distanceSymbolsCompatible(ref, input) < distanceSymbolsCompatible(ref_other, input))
 
 	r, _, _ := store.Lookup(input, HeightGrid{})
-	tu.AssertEqual(t, r, '3')
+	tu.AssertEqual(t, string(r), "3")
 }
 
 func TestMatchDB_4(t *testing.T) {

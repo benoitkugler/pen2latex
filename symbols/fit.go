@@ -1,5 +1,7 @@
 package symbols
 
+import "fmt"
+
 // This file implements algorithms to fit curves to points :
 //	- for a line
 //	- for a cubic bezier curve
@@ -465,6 +467,21 @@ func robustTangent(tHat1, tHat2, tHat3 Pos) Pos {
 	return tHat1
 }
 
+// are we at the cross between two lines ?
+func havePointsSharpAngle(d []Pos, center int) (bool, Fl) {
+	before, after := center-10, center+10
+	if before < 0 || after >= len(d) {
+		return false, 0
+	}
+	p1, p2 := d[before:center+1], d[center:after]
+	// check if the two parts of the curve are linear
+	_, err1 := fitSegment(p1)
+	_, err2 := fitSegment(p2)
+	first, middle, last := d[before], d[center], d[after]
+	a := angle(middle.Sub(first), last.Sub(middle))
+	return err1 < 0.7 && err2 < 0.7, a
+}
+
 func computeCenterTangent(d []Pos, center int) (left, right Pos) {
 	left = computeEndTangent(d[:center+1])
 	right = computeStartTangent(d[center:])
@@ -475,7 +492,12 @@ func computeCenterTangent(d []Pos, center int) (left, right Pos) {
 		u := d[center].Sub(d[before])
 		v := d[after].Sub(d[center])
 
-		if abs(angle(u, v)) < 45 { // use the average
+		a := angle(u, v)
+		// if ok, correctedAngle := havePointsSharpAngle(d, center); ok {
+		// 	a = correctedAngle
+		// }
+		smooth := abs(a) < 45
+		if smooth { // use the average
 			tHatMean := u.Add(v).ScaleTo(0.5)
 
 			left = tHatMean.ScaleTo(-1)
@@ -505,6 +527,11 @@ func mergeSimilarCurves(curves []Bezier) (out []Bezier) {
 		c1, c2 := curves[0], curves[1]
 		if c1.IsRoughlyLinear() && c2.IsRoughlyLinear() && areLinesMerged(c1, c2) {
 			// we got a repetition : only keep the second segment
+
+			if debugMode {
+				fmt.Println("mergeSimilarCurves: removing linear repetition")
+			}
+
 			curves = curves[1:]
 		}
 	}
@@ -517,19 +544,41 @@ func mergeSimilarCurves(curves []Bezier) (out []Bezier) {
 		currentCurve := curves[i]
 		points := append(prevCurve.toPoints(), currentCurve.toPoints()...)
 
-		isAligned := areTangentsAligned(prevCurve, currentCurve)
+		angle := tangentAngle(prevCurve, currentCurve)
 
 		_, errSegment := fitSegment(points)
 		mergedCurve, errCurve := fitCubicBezier(points)
+		// check that the merging do not introduce undesired angles
+		isMergedTangentCompatible := true
+		if len(out) >= 2 {
+			previous := out[len(out)-2]
+			wasSmooth := tangentAngle(previous, prevCurve) < 10
+			isMergedTangentCompatible = isMergedTangentCompatible && (!wasSmooth || tangentAngle(previous, mergedCurve) < 20)
+		}
+		if i+1 < len(curves) {
+			next := curves[i+1]
+			wasSmooth := tangentAngle(currentCurve, next) < 10
+			isMergedTangentCompatible = isMergedTangentCompatible && (!wasSmooth || tangentAngle(mergedCurve, curves[i+1]) < 20)
+		}
 
 		f1, f2, spuriousCurvature := areBeziersSpuriousCurvature(prevCurve, currentCurve)
 
-		if errSegment < 1 {
+		if isAligned := angle < 10; isAligned && errSegment < 1.1 {
 			// replace the last element of out
 			out[len(out)-1] = segment{prevCurve.P0, currentCurve.P3}.asBezier()
-		} else if isAligned && errCurve < 12 {
+
+			if debugMode {
+				fmt.Printf("mergeSimilarCurves: %d -> merging 2 to 1 segment\n", i)
+			}
+
+		} else if isAligned := angle < 5; isAligned && errCurve < 12 && isMergedTangentCompatible {
 			// replace the last element of out
 			out[len(out)-1] = mergedCurve
+
+			if debugMode {
+				fmt.Printf("mergeSimilarCurves: %d -> merging 2 to 1 curve\n", i)
+			}
+
 		} else if spuriousCurvature {
 			// replace the last with the correction...
 			out[len(out)-1] = f1
@@ -555,7 +604,7 @@ func mergeSimilarCurves(curves []Bezier) (out []Bezier) {
 // return true if there is a spurious curvature at the end of c1 or at the start of c2,
 // coming from a split at the wrong place
 func areBeziersSpuriousCurvature(c1, c2 Bezier) (fixed1, fixed2 Bezier, ok bool) {
-	if !areTangentsAligned(c1, c2) {
+	if isAligned := tangentAngle(c1, c2) < 5; !isAligned {
 		return
 	}
 
